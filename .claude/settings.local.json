@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(.venv\\\\Scripts\\\\pip install *)",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(.venv/Scripts/python -c \"from scipy.signal import resample_poly; print\\('scipy OK'\\)\")",
+      "Bash(\"c:/Users/ASUS/Desktop/Practica/dasai_mochi_servidor/.venv/Scripts/python.exe\" -c \"from scipy.signal import resample_poly; print\\('scipy OK'\\)\")",
+      "Bash(python3 -c \"from scipy.signal import resample_poly; print\\('scipy OK'\\)\")",
+      "Bash(python3 -m pip install scipy --quiet)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

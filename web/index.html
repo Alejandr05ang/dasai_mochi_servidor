@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice IoT Monitor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Voice IoT Monitor</p>
+          <h1>Dashboard en tiempo real para audio, transcripción e intents.</h1>
+          <p class="lead">
+            Web mínima para visualizar eventos del servidor por WebSocket mientras el
+            backend y el ESP32 se integran por fases.
+          </p>
+        </div>
+
+        <div class="status-card">
+          <div class="status-row">
+            <span class="status-dot" id="connectionDot"></span>
+            <div>
+              <p class="status-label">Estado</p>
+              <strong id="connectionStatus">Desconectado</strong>
+            </div>
+          </div>
+          <p class="status-note" id="statusNote">Esperando conexión al servidor.</p>
+          <div class="server-field">
+            <label for="serverUrl">Servidor WebSocket</label>
+            <input id="serverUrl" type="text" value="ws://localhost:8000/ws" />
+          </div>
+          <button id="connectBtn" class="primary-btn">Conectar</button>
+        </div>
+      </section>
+
+      <section class="metrics">
+        <article class="metric-card">
+          <span>Eventos</span>
+          <strong id="eventCount">0</strong>
+        </article>
+        <article class="metric-card">
+          <span>Última transcripción</span>
+          <strong id="lastTranscript">—</strong>
+        </article>
+        <article class="metric-card">
+          <span>Último intent</span>
+          <strong id="lastIntent">—</strong>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Actividad</p>
+            <h2>Eventos en vivo</h2>
+          </div>
+          <button id="clearBtn" class="ghost-btn">Limpiar</button>
+        </div>
+        <div id="eventList" class="event-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
