@@ -63,3 +63,4 @@ yarn-error.log
 # Archivos temporales
 *.tmp
 *.temp
+*.zip

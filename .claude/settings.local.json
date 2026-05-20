@@ -10,7 +10,13 @@
       "Bash(\"c:/Users/ASUS/Desktop/Practica/dasai_mochi_servidor/.venv/Scripts/python.exe\" -c \"from scipy.signal import resample_poly; print\\('scipy OK'\\)\")",
       "Bash(python3 -c \"from scipy.signal import resample_poly; print\\('scipy OK'\\)\")",
       "Bash(python3 -m pip install scipy --quiet)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(Select-Object FullName, Length)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\server\\\\models\")",
+      "PowerShell(curl.exe -L -o \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\server\\\\models\\\\vosk-model-small-es-0.42.zip\" \"https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip\")",
+      "PowerShell(Expand-Archive -Path \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\server\\\\models\\\\vosk-model-small-es-0.42.zip\" -DestinationPath \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\server\\\\models\\\\\" -Force)",
+      "PowerShell(c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\.venv\\\\Scripts\\\\pip.exe install vosk)"
     ]
   }
 }
