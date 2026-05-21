@@ -3,6 +3,7 @@ Ruta para recibir audio PCM16 (16-bit, mono) directamente del ESP32
 y guardarlo como WAV.  Si INPUT != OUTPUT se usa scipy.resample_poly.
 """
 from fastapi import APIRouter, Request
+from starlette.requests import ClientDisconnect
 import os
 import wave
 import json
@@ -63,7 +64,11 @@ async def receive_audio_pcm16(request: Request) -> dict:
         }
     
     session = audio_sessions[session_key]
-    body = await request.body()
+    try:
+        body = await request.body()
+    except ClientDisconnect:
+        print(json.dumps({"event": "client_disconnected", "device_id": device_id, "session_id": session_id}))
+        return {"status": "disconnected", "device_id": device_id, "session_id": session_id}
 
     print(json.dumps({
         "event": "pcm16_request",
@@ -147,7 +152,7 @@ async def receive_audio_pcm16(request: Request) -> dict:
             "output_duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE
         }))
 
-        # Guardar WAV raw a la tasa de entrada (para diagnóstico)
+        # Guardar WAV raw a la tasa de entrada (original sin procesar)
         raw_filename = f"{device_id}_{session_id}_{int(datetime.utcnow().timestamp())}_raw.wav"
         raw_filepath = os.path.join(STORAGE_DIR, raw_filename)
         try:

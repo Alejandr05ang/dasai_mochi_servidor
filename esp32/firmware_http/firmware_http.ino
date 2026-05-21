@@ -46,6 +46,7 @@ bool wifi_connected = false;
 char ip_string[32] = "-";
 bool i2s_ok = false;
 int last_http_status = 0;
+bool http_ever_sent = false;   // false until first finalSendTask completes
 unsigned long total_bytes_sent = 0;
 
 // --- CONFIGURA AQUI ---
@@ -72,7 +73,7 @@ const int I2S_BITS = 32; // bits per sample (ajusta a 32 si usas INMP441)
 const size_t CHUNK_SIZE = 4096;
 
 // Modo de prueba: arrancar sesión automáticamente y mostrar muestras por Serial
-#define AUTO_START_RECORDING true
+#define AUTO_START_RECORDING false
 #define DEBUG_PRINT_SAMPLES true
 // Modo micrófono puro: no envía HTTP, solo imprime y muestra nivel
 // Cambiar a false para permitir envíos HTTP al servidor
@@ -88,20 +89,64 @@ unsigned long lastDebounce = 0;
 const unsigned long debounceDelay = 50;
 int currentButtonReading = LOW;
 
-// track session start time (inicializado cuando comienza la sesión)
+// track session start time — SOLO para el guard del botón (>= 1500 ms), NO resetear con envíos
 unsigned long sessionStart = 0;
+// último envío intermedio exitoso — para el timer de seguridad (se puede resetear con envíos)
 
-// GAIN_SHIFT: cuanto menor, mayor amplitud PCM16.
-// >>14 era demasiado silencioso (~4-15 % del fondo de escala).
-// >>12 da ~60 % para voz normal, rara vez clipea.
-#define GAIN_SHIFT 12
+// GAIN_SHIFT confirmado por sketch de prueba: >>14 da rango ±8000–30000 sin clipar.
+#define GAIN_SHIFT 14
 
-// Acumular N lecturas I2S antes de cada POST HTTP.
-// 4 lecturas × 128 ms = 512 ms de audio por envío → menos overhead HTTP.
-#define SEND_EVERY_N_CHUNKS 4
-uint8_t acc_buffer[SEND_EVERY_N_CHUNKS * (CHUNK_SIZE / 2)]; // 8 192 bytes
+// Duración máxima de la sesión en segundos de AUDIO REAL.
+// 3 s es suficiente para "apaga la luz" / "enciende la luz".
+// 3 × 8000 Hz × 2 bytes = 48 000 bytes — < 10 % del SRAM del ESP32-C6.
+#define AUTO_SESSION_DURATION_S  5
+#define AUTO_SESSION_AUDIO_BYTES ((unsigned long)AUTO_SESSION_DURATION_S * SAMPLE_RATE * 2)
+
+// Buffer único que acumula TODA la sesión sin envíos intermedios.
+// Sin HTTP bloqueante en el loop → ojos/buzzer/UI del Dasai Mochi nunca se interrumpen.
+static uint8_t acc_buffer[AUTO_SESSION_AUDIO_BYTES]; // 48 000 bytes
 size_t acc_offset = 0;
-String lastTranscription = ""; // última transcripción recibida del servidor
+unsigned long sessionAudioBytes = 0;
+String lastTranscription = "";
+
+// Warmup: con alpha=1/64 (τ=8ms), 100ms cubre 12τ → 99.9% convergencia.
+#define WARMUP_DURATION_MS 100
+bool warmup_complete = false;
+size_t warmup_samples = 0;
+
+// --- Envío asíncrono: copia de la sesión completa para enviar en background ---
+static uint8_t  _fs_buf[AUTO_SESSION_AUDIO_BYTES];
+static size_t   _fs_len    = 0;
+static String   _fs_sid    = "";
+static volatile bool _fs_done   = false;
+static volatile int  _fs_status = 0;
+static TaskHandle_t  _fs_task   = NULL;
+
+void finalSendTask(void*) {
+  Serial.print("finalSend: _fs_len="); Serial.print(_fs_len);
+  Serial.print(" heap="); Serial.println(ESP.getFreeHeap());
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(SERVER_URL);
+    http.setTimeout(15000);
+    http.addHeader("device-id", DEVICE_ID);
+    http.addHeader("session-id", _fs_sid.c_str());
+    http.addHeader("end", "true");
+    http.addHeader("Content-Type", "application/octet-stream");
+    _fs_status = http.sendRequest("POST", _fs_buf, _fs_len);
+    String payload = http.getString();
+    if (_fs_status >= 200 && _fs_status < 300) {
+      lastTranscription = parseTranscriptionText(payload);
+    }
+    http.end();
+  } else {
+    _fs_status = -4;
+  }
+  _fs_done = true;
+  _fs_task = NULL;
+  vTaskDelete(NULL);
+}
+// ---------------------------------------------------------------
 
 // Función para convertir 32-bit I2S a 16-bit PCM
 // Input: buffer de 32-bit samples (CHUNK_SIZE bytes)
@@ -113,20 +158,19 @@ size_t convert_i2s32_to_pcm16(const uint8_t* input, size_t input_len, uint8_t* o
 
   if (num_samples == 0) return 0;
 
-  // EMA para DC removal — la variable es estática y persiste entre llamadas.
-  // Al ser continua entre chunks no crea saltos → elimina el artefacto de "hélice".
-  // alpha = 1/512 → τ ≈ 64 ms @8 kHz; solo filtra sub-2.5 Hz (no afecta la voz).
+  // EMA para DC removal — alpha = 1/64 → τ ≈ 8 ms @8 kHz, corte ~20 Hz.
+  // Misma velocidad que el sketch de prueba validado; no afecta voz (>80 Hz).
   static int64_t dc_ema = 0;
 
-  int64_t sum_sq = 0;
+  double sum_sq = 0.0;
   int32_t max_abs = 0;
   for (size_t i = 0; i < num_samples; i++) {
     int64_t s = (int64_t)samples32[i];
-    dc_ema = ((dc_ema * 511) + s) >> 9;          // actualizar EMA de DC
+    dc_ema = ((dc_ema * 63) + s) >> 6;            // actualizar EMA de DC (alpha=1/64)
     int32_t centered = (int32_t)(s - dc_ema);    // restar DC suavemente
     int32_t absv = centered < 0 ? -centered : centered;
     if (absv > max_abs) max_abs = absv;
-    sum_sq += (int64_t)centered * centered;
+    sum_sq += (double)centered * centered;
     int32_t v = centered >> GAIN_SHIFT;
     if (v > 32767) v = 32767;
     if (v < -32768) v = -32768;
@@ -217,54 +261,107 @@ void connectWiFi() {
 }
 
 void update_display() {
-  // Initialize Wire and display if not already
-  // (u8g2.begin should be called from setup once)
   u8g2.clearBuffer();
+
+  // ── Fila 1: WiFi + I2S ───────────────────────
+  u8g2.setFont(u8g2_font_5x7_tr);
+  char buf[48];
+  snprintf(buf, sizeof(buf), "WiFi:%-2s  I2S:%-2s",
+           wifi_connected ? "OK" : "NO",
+           i2s_ok         ? "OK" : "NO");
+  u8g2.drawStr(0, 7, buf);
+
+  // ── Fila 2: IP ───────────────────────────────
+  u8g2.drawStr(0, 15, ip_string);
+
+  // ── Separador ────────────────────────────────
+  u8g2.drawHLine(0, 17, 128);
+
+  // ── Bloque de estado (y=19..39) ──────────────
+  const char* stateLabel;
+  bool invertBox = false;    // GRABANDO → caja rellena (máximo contraste)
+  bool roundBox  = false;    // ENVIANDO → caja redondeada
+
+  if (_fs_task != NULL) {
+    stateLabel = "ENVIANDO...";
+    roundBox   = true;
+  } else if (!recording) {
+    stateLabel = wifi_connected ? "LISTO" : "SIN WIFI";
+  } else if (!warmup_complete) {
+    stateLabel = "INICIANDO";
+  } else {
+    stateLabel = "GRABANDO";
+    invertBox  = true;
+  }
+
+  const int BOX_Y = 19, BOX_H = 21;
   u8g2.setFont(u8g2_font_ncenB08_tr);
-  u8g2.drawStr(0, 10, "Voice IoT");
+  int lw = u8g2.getStrWidth(stateLabel);
+  int lx = (128 - lw) / 2;
 
-  // WiFi status
-  char buf[64];
-  snprintf(buf, sizeof(buf), "WiFi: %s", wifi_connected ? "OK" : "NO");
-  u8g2.drawStr(0, 25, buf);
+  if (invertBox) {
+    u8g2.drawBox(0, BOX_Y, 128, BOX_H);
+    u8g2.setDrawColor(0);
+    u8g2.drawStr(lx, BOX_Y + 14, stateLabel);
+    u8g2.setDrawColor(1);
+  } else if (roundBox) {
+    u8g2.drawRFrame(0, BOX_Y, 128, BOX_H, 4);
+    u8g2.drawStr(lx, BOX_Y + 14, stateLabel);
+  } else {
+    u8g2.drawFrame(0, BOX_Y, 128, BOX_H);
+    u8g2.drawStr(lx, BOX_Y + 14, stateLabel);
+  }
 
-  // IP
-  u8g2.drawStr(0, 37, ip_string);
+  // ── Separador ────────────────────────────────
+  u8g2.drawHLine(0, 41, 128);
 
-  // I2S / mic
-  snprintf(buf, sizeof(buf), "I2S: %s", i2s_ok ? "OK" : "NO");
-  u8g2.drawStr(0, 49, buf);
+  // ── Hint contextual (centrado) ────────────────
+  u8g2.setFont(u8g2_font_5x7_tr);
+  const char* hint;
+  if (_fs_task != NULL)         hint = "procesando audio...";
+  else if (!recording)          hint = "toca para grabar";
+  else if (!warmup_complete)    hint = "calibrando mic...";
+  else                          hint = "suelta para enviar";
 
-  // Touch / HTTP
-  snprintf(buf, sizeof(buf), "Touch:%s HTTP:%d", recording ? "REC" : "WAIT", last_http_status);
-  u8g2.drawStr(0, 61, buf);
+  int hw = u8g2.getStrWidth(hint);
+  u8g2.drawStr((128 - hw) / 2, 51, hint);
+
+  // ── HTTP ─────────────────────────────────────
+  if (http_ever_sent)
+    snprintf(buf, sizeof(buf), "HTTP:%d", last_http_status);
+  else
+    snprintf(buf, sizeof(buf), "HTTP:---");
+  u8g2.drawStr(0, 63, buf);
 
   u8g2.sendBuffer();
 }
 
 void startSession() {
-  acc_offset = 0; // limpiar buffer acumulador de la sesión anterior
+  acc_offset = 0;
+  sessionAudioBytes = 0;
+  warmup_complete = false;
+  warmup_samples = 0;
   sessionId = String(millis());
   recording = true;
+  sessionStart = millis();
   Serial.print("Nueva session: ");
   Serial.println(sessionId);
-  sessionStart = millis();
-  Serial.print("sessionStart= "); Serial.println(sessionStart);
   update_display();
 }
 
 void stopSession() {
-  if (!MIC_ONLY_MODE) {
-    lastTranscription = "";
-    sendChunk(acc_buffer, acc_offset, true); // flush + end=true
-    acc_offset = 0;
-  }
   recording = false;
-  update_display();
-  // Mostrar resultado en OLED (sobreescribe el estado de grabación)
-  if (lastTranscription.length() > 0) {
-    display_transcription(lastTranscription);
+  if (!MIC_ONLY_MODE && _fs_task == NULL) {
+    memcpy(_fs_buf, acc_buffer, acc_offset);
+    _fs_len    = acc_offset;
+    _fs_sid    = sessionId;
+    _fs_done   = false;
+    _fs_status = 0;
+    lastTranscription = "";
+    xTaskCreatePinnedToCore(finalSendTask, "fSend", 8192, NULL, 1, &_fs_task, 0);
   }
+  acc_offset = 0;
+  update_display();
 }
 
 bool initI2S() {
@@ -322,8 +419,8 @@ bool sendChunk(const uint8_t* data, size_t len, bool endFlag) {
 
   HTTPClient http;
   http.begin(SERVER_URL);
-  // El POST final espera que Vosk termine → dar hasta 30 s
-  if (endFlag) http.setTimeout(30000);
+  http.setTimeout(5000);            // Intermedios: máx 5 s para no bloquear el loop
+  if (endFlag) http.setTimeout(30000); // Final: espera a Vosk
   http.addHeader("device-id", DEVICE_ID);
   http.addHeader("session-id", sessionId.c_str());
   http.addHeader("end", endFlag ? "true" : "false");
@@ -389,6 +486,25 @@ void setup() {
 }
 
 void loop() {
+  // ===== RESULTADO DEL ENVÍO FINAL (tarea en background) =====
+  if (_fs_done) {
+    _fs_done = false;
+    last_http_status = _fs_status;
+    http_ever_sent = true;
+    update_display();
+    if (_fs_status >= 200 && _fs_status < 300) {
+      // Éxito: mostrar transcripción si la hay
+      if (lastTranscription.length() > 0) {
+        display_transcription(lastTranscription);
+        lastTranscription = "";
+      }
+    } else {
+      // Fallo del envío final: log sin bloquear el reinicio
+      Serial.print("Envio final fallido, HTTP: ");
+      Serial.println(_fs_status);
+    }
+  }
+
   // ===== DETECCIÓN DE BOTÓN (siempre activa) =====
   int reading = digitalRead(BUTTON_PIN);
   if (reading != currentButtonReading) {
@@ -407,31 +523,35 @@ void loop() {
     int previousState = lastStableButtonState;
     lastStableButtonState = reading;
     
-    // TTP223: transición LOW → HIGH = toque detectado
-    if (BUTTON_ACTIVE_HIGH && previousState == LOW && reading == HIGH) {
-      if (!recording) {
-        Serial.println("Entro a la sesion");
-        startSession();
+    // PTT: mantener presionado = grabar; soltar = enviar
+    if (BUTTON_ACTIVE_HIGH) {
+      if (previousState == LOW && reading == HIGH) {
+        // Presión: iniciar grabación
+        if (!recording && _fs_task == NULL) {
+          Serial.println("PTT: inicio grabacion");
+          startSession();
+        } else if (_fs_task != NULL) {
+          Serial.println("PTT: aun enviando, ignorado");
+        }
+      } else if (previousState == HIGH && reading == LOW) {
+        // Soltar: detener y enviar
+        if (recording) {
+          Serial.println("PTT: fin grabacion");
+          stopSession();
+        }
       }
-    }
-    // TTP223: transición HIGH → LOW = toque liberado
-    else if (BUTTON_ACTIVE_HIGH && previousState == HIGH && reading == LOW) {
-      if (recording) {
-        Serial.println("Sesión finalizada por pulsador");
-        stopSession(); // stopSession envía flush + end=true
-      }
-    }
-
-    // Si el sensor viniera cableado al revés, esta rama ayuda a depurar rápido
-    else if (!BUTTON_ACTIVE_HIGH && previousState == HIGH && reading == LOW) {
-      if (!recording) {
-        Serial.println("Entro a la sesion (activo LOW)");
-        startSession();
-      }
-    } else if (!BUTTON_ACTIVE_HIGH && previousState == LOW && reading == HIGH) {
-      if (recording) {
-        Serial.println("Sesión finalizada por pulsador (activo LOW)");
-        stopSession(); // stopSession envía flush + end=true
+    } else {
+      // Sensor activo LOW
+      if (previousState == HIGH && reading == LOW) {
+        if (!recording && _fs_task == NULL) {
+          Serial.println("PTT: inicio grabacion (activo LOW)");
+          startSession();
+        }
+      } else if (previousState == LOW && reading == HIGH) {
+        if (recording) {
+          Serial.println("PTT: fin grabacion (activo LOW)");
+          stopSession();
+        }
       }
     }
   }
@@ -478,32 +598,46 @@ void loop() {
 #endif
     
     if (!MIC_ONLY_MODE && pcm16_len > 0) {
-      // Acumular en el buffer; enviar solo cuando esté lleno (reduce POSTs HTTP)
-      memcpy(acc_buffer + acc_offset, buffer_pcm16, pcm16_len);
-      acc_offset += pcm16_len;
-      Serial.print("acc_offset="); Serial.println(acc_offset);
-      if (acc_offset >= sizeof(acc_buffer)) {
-        bool ok = sendChunk(acc_buffer, acc_offset, false);
-        if (!ok) Serial.println("Envio fallido; continuando...");
-        acc_offset = 0;
+      // Warmup: descartar los primeros ~200ms para dejar que EMA de DC converja
+      if (!warmup_complete) {
+        size_t warmup_bytes_needed = (SAMPLE_RATE * WARMUP_DURATION_MS / 1000) * 2;  // 2 bytes per sample
+        warmup_samples += pcm16_len;
+        Serial.print("Warmup: "); Serial.print(warmup_samples); Serial.print(" / "); Serial.println(warmup_bytes_needed);
+        if (warmup_samples >= warmup_bytes_needed) {
+          warmup_complete = true;
+          Serial.println("Warmup complete, audio grabación iniciada");
+          update_display();
+        }
+        return;  // descartar este chunk
       }
+
+      // Acumular en el buffer único de sesión (sin envíos intermedios bloqueantes).
+      // El loop nunca hace HTTP aquí → ojos/buzzer/UI continúan sin interrupción.
+      size_t space = sizeof(acc_buffer) - acc_offset;
+      size_t to_copy = pcm16_len < space ? pcm16_len : space;
+      memcpy(acc_buffer + acc_offset, buffer_pcm16, to_copy);
+      acc_offset += to_copy;
+      sessionAudioBytes += to_copy;
+      Serial.print("audioBytes="); Serial.println(sessionAudioBytes);
     }
   } else {
-    // Si no hay datos, esperar un poco
     delay(10);
     yield();
   }
 
-  // Ejemplo: cerrar sesión después de cierto tiempo (p.ej. 60s)
+  // Auto-stop: buffer lleno = AUTO_SESSION_DURATION_S segundos de audio capturados.
+  if (recording && warmup_complete && sessionAudioBytes >= AUTO_SESSION_AUDIO_BYTES) {
+    Serial.print("Auto-stop: ");
+    Serial.print(AUTO_SESSION_DURATION_S);
+    Serial.println("s de audio capturados");
+    stopSession();
+  }
+
+  // Timeout de seguridad: si la sesión no termina en 60 s de reloj, forzar cierre.
   if (sessionStart == 0) sessionStart = millis();
-  if (millis() - sessionStart > 20000) {
-    Serial.println("Sesión finalizada por timeout");
-    stopSession(); // stopSession envía flush + end=true
-    // Para demo, recalculamos nueva session tras 5s
-    delay(5000);
-    yield();
-    //startSession();
-    sessionStart = millis();
+  if (recording && millis() - sessionStart > 60000) {
+    Serial.println("Sesion finalizada por timeout de seguridad");
+    stopSession();
   }
 }
 
