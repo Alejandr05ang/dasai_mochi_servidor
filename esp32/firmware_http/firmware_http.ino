@@ -26,6 +26,7 @@
 */
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <driver/i2s.h>
 #include <esp_err.h>
@@ -52,7 +53,7 @@ unsigned long total_bytes_sent = 0;
 // --- CONFIGURA AQUI ---
 const char* WIFI_SSID = "MARCO_1";
 const char* WIFI_PASS = "dante0507";
-const char* SERVER_URL = "http://192.168.18.171:8000/audio/pcm16"; // Cambia por la IP de tu servidor
+const char* SERVER_URL = "https://crzs1qs4-5321.use.devtunnels.ms/audio/pcm16"; // Dev tunnel — no cambiar IP
 const char* DEVICE_ID = "esp32_01"; // Identificador del dispositivo
 // -----------------------
 
@@ -126,14 +127,19 @@ void finalSendTask(void*) {
   Serial.print("finalSend: _fs_len="); Serial.print(_fs_len);
   Serial.print(" heap="); Serial.println(ESP.getFreeHeap());
   if (WiFi.status() == WL_CONNECTED) {
+    WiFiClientSecure tls;
+    tls.setInsecure(); // dev tunnel: omitir verificación de cert
     HTTPClient http;
-    http.begin(SERVER_URL);
+    http.begin(tls, SERVER_URL);
     http.setTimeout(15000);
     http.addHeader("device-id", DEVICE_ID);
     http.addHeader("session-id", _fs_sid.c_str());
     http.addHeader("end", "true");
     http.addHeader("Content-Type", "application/octet-stream");
     _fs_status = http.sendRequest("POST", _fs_buf, _fs_len);
+    if (_fs_status <= 0) {
+      Serial.printf("finalSend HTTP error %d: %s\n", _fs_status, http.errorToString(_fs_status).c_str());
+    }
     String payload = http.getString();
     if (_fs_status >= 200 && _fs_status < 300) {
       lastTranscription = parseTranscriptionText(payload);
@@ -141,6 +147,7 @@ void finalSendTask(void*) {
     http.end();
   } else {
     _fs_status = -4;
+    Serial.println("finalSend: WiFi no conectado");
   }
   _fs_done = true;
   _fs_task = NULL;
@@ -417,8 +424,10 @@ bool sendChunk(const uint8_t* data, size_t len, bool endFlag) {
   Serial.print("freeHeap before send: ");
   Serial.println(ESP.getFreeHeap());
 
+  WiFiClientSecure tls;
+  tls.setInsecure(); // dev tunnel: omitir verificación de cert
   HTTPClient http;
-  http.begin(SERVER_URL);
+  http.begin(tls, SERVER_URL);
   http.setTimeout(5000);            // Intermedios: máx 5 s para no bloquear el loop
   if (endFlag) http.setTimeout(30000); // Final: espera a Vosk
   http.addHeader("device-id", DEVICE_ID);
@@ -427,6 +436,9 @@ bool sendChunk(const uint8_t* data, size_t len, bool endFlag) {
   http.addHeader("Content-Type", "application/octet-stream");
 
   int statusCode = http.sendRequest("POST", (uint8_t*)data, len);
+  if (statusCode <= 0) {
+    Serial.printf("sendChunk HTTP error %d: %s\n", statusCode, http.errorToString(statusCode).c_str());
+  }
   String payload = http.getString();
   Serial.print("HTTP ");
   Serial.print(statusCode);

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import asyncio
@@ -8,6 +10,11 @@ try:
     VOSK_AVAILABLE = True
 except Exception:
     VOSK_AVAILABLE = False
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vosk import Model, KaldiRecognizer
 
 
 _VOSK_MODEL = None
