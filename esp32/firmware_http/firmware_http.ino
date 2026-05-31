@@ -143,6 +143,7 @@ void finalSendTask(void*) {
     String payload = http.getString();
     if (_fs_status >= 200 && _fs_status < 300) {
       lastTranscription = parseTranscriptionText(payload);
+      setMood(parseMoodId(payload));
     }
     http.end();
   } else {
@@ -203,6 +204,26 @@ String parseTranscriptionText(const String& json) {
   int end = json.indexOf("\"", start);
   if (end <= start) return "";
   return json.substring(start, end);
+}
+
+// Extrae "mood_id" del JSON. Devuelve -1 si no está presente.
+int parseMoodId(const String& json) {
+  int idx = json.indexOf("\"mood_id\":");
+  if (idx < 0) return -1;
+  int start = idx + 10;
+  int end = start;
+  while (end < (int)json.length() && (isdigit(json[end]) || json[end] == '-')) end++;
+  if (end == start) return -1;
+  return json.substring(start, end).toInt();
+}
+
+// Aplica el mood recibido del servidor.
+// mood_id coincide con MOOD_IDS del servidor (0=NORMAL, 1=HAPPY, ..., 9=DIZZY).
+void setMood(int mood_id) {
+  if (mood_id < 0) return;
+  Serial.print("setMood: "); Serial.println(mood_id);
+  // TODO: llamar animación de ojos/LEDs según mood_id
+  // Ejemplo: eyes.play(mood_id);
 }
 
 // Muestra el texto de transcripción en el OLED con word-wrap automático.

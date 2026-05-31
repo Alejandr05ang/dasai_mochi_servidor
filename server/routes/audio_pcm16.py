@@ -18,6 +18,7 @@ except ImportError:
 
 from server.ws.manager import manager
 from server.services.stt import transcribe_audio_file_async
+from server.services.intents import detect_intent, build_response
 
 router = APIRouter()
 
@@ -190,9 +191,14 @@ async def receive_audio_pcm16(request: Request) -> dict:
                 "message": f"Sesión cerrada para {device_id} ({len(audio_bytes)} bytes PCM16 → WAV)",
             })
 
-            # Notificar archivo disponible
-            transcription = await transcribe_audio_file_async(filepath)
+            # Usar _raw.wav (8 kHz real) → stt.py aplica audioop.ratecv correctamente
+            transcription = await transcribe_audio_file_async(raw_filepath)
+            text = transcription.get("text", "") if isinstance(transcription, dict) else ""
+            intent_result = build_response(detect_intent(text), text)
             response["transcription"] = transcription
+            response["intent"]  = intent_result["intent"]
+            response["mood_id"] = intent_result["mood_id"]
+            response["text"]    = text
 
             print(json.dumps({
                 "event": "pcm16_transcription_result",
@@ -200,6 +206,8 @@ async def receive_audio_pcm16(request: Request) -> dict:
                 "session_id": session_id,
                 "file": filename,
                 "transcription": transcription,
+                "intent": intent_result["intent"],
+                "mood_id": intent_result["mood_id"],
             }))
 
             await manager.broadcast({

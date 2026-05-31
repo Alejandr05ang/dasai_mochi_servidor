@@ -1,20 +1,29 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
 import os
+
 from server.services.stt import transcribe_audio_file
+from server.services.intents import detect_intent, build_response
 
 router = APIRouter()
 
 
-@router.get('/transcribe')
-async def transcribe(file: str):
-    # file is a path relative to /files, e.g. /files/device_session_timestamp.raw
-    # map to storage dir
-    # sanitize
-    if '..' in file:
+class TextPayload(BaseModel):
+    text: str
+
+
+@router.post("/transcribe")
+async def transcribe_text(payload: TextPayload):
+    intent = detect_intent(payload.text)
+    return build_response(intent, payload.text)
+
+
+@router.get("/transcribe")
+async def transcribe_file(file: str):
+    if ".." in file:
         return {"error": "invalid path"}
-    # strip leading slash
-    file = file.lstrip('/')
-    base = os.path.join(os.path.dirname(__file__), '..', 'storage')
+    file = file.lstrip("/")
+    base = os.path.join(os.path.dirname(__file__), "..", "storage")
     path = os.path.normpath(os.path.join(base, os.path.basename(file)))
     if not os.path.exists(path):
         return {"error": "file not found"}

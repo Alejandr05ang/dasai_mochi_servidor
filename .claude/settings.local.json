@@ -18,7 +18,8 @@
       "PowerShell(Expand-Archive -Path \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\server\\\\models\\\\vosk-model-small-es-0.42.zip\" -DestinationPath \"c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\server\\\\models\\\\\" -Force)",
       "PowerShell(c:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\\\\.venv\\\\Scripts\\\\pip.exe install vosk)",
       "PowerShell(netsh advfirewall firewall show rule name=\"FastAPI 8000\" 2>$null)",
-      "PowerShell(if \\(-not $?\\) { \"No existe la regla aun\" })"
+      "PowerShell(if \\(-not $?\\) { \"No existe la regla aun\" })",
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pytest tests/ -v)"
     ]
   }
 }
