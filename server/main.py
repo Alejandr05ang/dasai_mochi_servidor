@@ -15,6 +15,7 @@ from routes.audio_pcm16 import router as audio_pcm16_router
 from routes.transcribe import router as transcribe_router
 from ws.manager import manager
 from services.buffer import buffer_manager
+from services.stt import download_model_if_missing
 
 
 LOG = logging.getLogger("voiceiot")
@@ -51,6 +52,7 @@ ENABLE_MOCK_EVENTS = os.getenv("ENABLE_MOCK_EVENTS", "false").lower() == "true"
 @app.on_event("startup")
 async def startup_event() -> None:
     LOG.info(json.dumps({"event": "startup"}))
+    await asyncio.to_thread(download_model_if_missing)
     if ENABLE_MOCK_EVENTS:
         asyncio.create_task(mock_broadcaster())
     asyncio.create_task(periodic_maintenance())

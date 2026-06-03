@@ -5,9 +5,37 @@ import os
 import asyncio
 import audioop
 import wave
+import urllib.request
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 
 _executor = ThreadPoolExecutor(max_workers=2)
+
+_MODEL_NAME = "vosk-model-small-es-0.42"
+_MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip"
+
+
+def download_model_if_missing() -> None:
+    base_models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
+    model_path = os.path.join(base_models_dir, _MODEL_NAME)
+    if os.path.exists(model_path):
+        return
+
+    os.makedirs(base_models_dir, exist_ok=True)
+    zip_path = os.path.join(base_models_dir, f"{_MODEL_NAME}.zip")
+
+    print(json.dumps({"event": "model_download_start", "url": _MODEL_URL}))
+    try:
+        urllib.request.urlretrieve(_MODEL_URL, zip_path)
+        print(json.dumps({"event": "model_download_complete"}))
+
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            zf.extractall(base_models_dir)
+
+        os.remove(zip_path)
+        print(json.dumps({"event": "model_extracted", "path": model_path}))
+    except Exception as e:
+        print(json.dumps({"event": "model_download_error", "error": str(e)}))
 try:
     from vosk import Model, KaldiRecognizer
     VOSK_AVAILABLE = True
