@@ -26,7 +26,9 @@
       "Bash(Select-Object -ExpandProperty StatusCode)",
       "PowerShell(Start-Sleep -Seconds 5; try { \\(Invoke-WebRequest -Uri http://localhost:8000/docs -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })",
       "PowerShell(try { \\(Invoke-WebRequest -Uri http://localhost:8000/docs -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })",
-      "PowerShell(try { \\(Invoke-WebRequest -Uri http://localhost:8000/openapi.json -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })"
+      "PowerShell(try { \\(Invoke-WebRequest -Uri http://localhost:8000/openapi.json -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\" -Recurse -Force | Where-Object {$_.FullName -notmatch '\\\\.venv' -and $_.FullName -notmatch '__pycache__'} | Select-Object FullName | head -100)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\ASUS\\\\Desktop\\\\Practica\\\\dasai_mochi_servidor\" -Recurse -Force | Where-Object {$_.FullName -notmatch '\\\\.venv' -and $_.FullName -notmatch '__pycache__'} | Select-Object FullName | Select-Object -First 100)"
     ]
   }
 }
