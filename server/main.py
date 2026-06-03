@@ -50,7 +50,7 @@ if SAVE_AUDIO:
     app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
 
 # Carpeta web — debe definirse antes del startup pero el mount va al final
-WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'web')
+WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
 
 ENABLE_MOCK_EVENTS = os.getenv("ENABLE_MOCK_EVENTS", "false").lower() == "true"
 
