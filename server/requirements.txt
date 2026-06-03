@@ -3,6 +3,5 @@ uvicorn
 websockets
 numpy
 scipy
-pyserial
 vosk
 audioop-lts

@@ -35,11 +35,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Montar carpeta de archivos guardados
-FILES_DIR = os.path.join(os.path.dirname(__file__), 'storage')
-os.makedirs(FILES_DIR, exist_ok=True)
-LOG.info(json.dumps({"event": "files_dir", "path": FILES_DIR}))
-app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
+SAVE_AUDIO = os.getenv("SAVE_AUDIO", "false").lower() == "true"
+if SAVE_AUDIO:
+    FILES_DIR = os.path.join(os.path.dirname(__file__), 'storage')
+    os.makedirs(FILES_DIR, exist_ok=True)
+    LOG.info(json.dumps({"event": "files_dir", "path": FILES_DIR}))
+    app.mount("/files", StaticFiles(directory=FILES_DIR), name="files")
 
 ENABLE_MOCK_EVENTS = os.getenv("ENABLE_MOCK_EVENTS", "false").lower() == "true"
 

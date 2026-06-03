@@ -7,6 +7,7 @@ from starlette.requests import ClientDisconnect
 import os
 import wave
 import json
+import tempfile
 from datetime import datetime
 
 import numpy as np
@@ -22,8 +23,13 @@ from server.services.intents import detect_intent, build_response
 
 router = APIRouter()
 
+# SAVE_AUDIO=true  → guarda _raw.wav y .wav en disco (modo debug)
+# SAVE_AUDIO=false → usa archivo temporal eliminado tras transcribir (Railway)
+SAVE_AUDIO = os.getenv("SAVE_AUDIO", "false").lower() == "true"
+
 STORAGE_DIR = os.path.join(os.path.dirname(__file__), '..', 'storage')
-os.makedirs(STORAGE_DIR, exist_ok=True)
+if SAVE_AUDIO:
+    os.makedirs(STORAGE_DIR, exist_ok=True)
 
 # ESP32 captura a 8 kHz; Vosk funciona mejor a 16 kHz.
 # La diferencia se cubre con scipy.resample_poly.
@@ -41,12 +47,12 @@ audio_sessions = {}
 async def receive_audio_pcm16(request: Request) -> dict:
     """
     Recibe audio PCM16 (16-bit, mono, 16kHz) del ESP32.
-    
+
     Headers requeridos:
     - device-id: identificador del dispositivo
     - session-id: ID de la sesión
     - end: "true" para finalizar la sesión y guardar WAV
-    
+
     Body:
     - Audio PCM16 binario (2 bytes por muestra)
     """
@@ -56,14 +62,14 @@ async def receive_audio_pcm16(request: Request) -> dict:
 
     # Clave de sesión única
     session_key = f"{device_id}_{session_id}"
-    
+
     # Obtener o crear sesión
     if session_key not in audio_sessions:
         audio_sessions[session_key] = {
             "samples": bytearray(),
             "start_time": datetime.utcnow()
         }
-    
+
     session = audio_sessions[session_key]
     try:
         body = await request.body()
@@ -79,13 +85,13 @@ async def receive_audio_pcm16(request: Request) -> dict:
         "body_bytes": len(body),
         "active_ws": len(manager.active_connections),
     }))
-    
+
     # Agregar muestras
     session["samples"].extend(body)
-    
+
     num_samples = len(session["samples"]) // 2  # 2 bytes por muestra
-    
-    manager_log = {
+
+    print(json.dumps({
         "event": "pcm16_chunk_received",
         "device_id": device_id,
         "session_id": session_id,
@@ -93,8 +99,7 @@ async def receive_audio_pcm16(request: Request) -> dict:
         "total_samples": num_samples,
         "total_bytes": len(session["samples"]),
         "time": datetime.utcnow().isoformat() + 'Z'
-    }
-    print(json.dumps(manager_log))
+    }))
 
     await manager.broadcast({
         "type": "status",
@@ -140,7 +145,7 @@ async def receive_audio_pcm16(request: Request) -> dict:
                 audio_bytes = np.repeat(arr, up).astype(np.int16).tobytes()
         else:
             audio_bytes = input_audio_bytes
-        
+
         print(json.dumps({
             "event": "session_finalized_pcm16",
             "device_id": device_id,
@@ -153,46 +158,71 @@ async def receive_audio_pcm16(request: Request) -> dict:
             "output_duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE
         }))
 
-        # Guardar WAV raw a la tasa de entrada (original sin procesar)
-        raw_filename = f"{device_id}_{session_id}_{int(datetime.utcnow().timestamp())}_raw.wav"
-        raw_filepath = os.path.join(STORAGE_DIR, raw_filename)
+        filename = None
+        stt_path = None
+        _tmp_wav = None
+
+        if SAVE_AUDIO:
+            # Guardar WAV raw a la tasa de entrada (original sin procesar)
+            raw_filename = f"{device_id}_{session_id}_{int(datetime.utcnow().timestamp())}_raw.wav"
+            raw_filepath = os.path.join(STORAGE_DIR, raw_filename)
+            try:
+                with wave.open(raw_filepath, 'wb') as wf_raw:
+                    wf_raw.setnchannels(1)
+                    wf_raw.setsampwidth(2)
+                    wf_raw.setframerate(INPUT_SAMPLE_RATE)
+                    wf_raw.writeframes(input_audio_bytes)
+            except Exception as e:
+                print(json.dumps({
+                    "event": "error_saving_raw_wav",
+                    "error": str(e),
+                    "raw_filename": raw_filename
+                }))
+
+            # Guardar WAV resampleado (16 kHz) para reproducción y STT
+            filename = f"{device_id}_{session_id}_{int(datetime.utcnow().timestamp())}.wav"
+            filepath = os.path.join(STORAGE_DIR, filename)
+            try:
+                with wave.open(filepath, 'wb') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(OUTPUT_SAMPLE_RATE)
+                    wf.writeframes(audio_bytes)
+
+                print(json.dumps({
+                    "event": "wav_saved_pcm16",
+                    "filename": filename,
+                    "wav_bytes": len(audio_bytes),
+                    "duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE
+                }))
+
+                await manager.broadcast({
+                    "type": "status",
+                    "message": f"Sesión cerrada para {device_id} ({len(audio_bytes)} bytes PCM16 → WAV)",
+                })
+            except Exception as e:
+                print(json.dumps({
+                    "event": "error_saving_wav",
+                    "error": str(e),
+                    "filename": filename
+                }))
+                response["error"] = f"Error guardando WAV: {str(e)}"
+
+            stt_path = raw_filepath
+        else:
+            # Archivo temporal para STT; se elimina tras transcribir
+            fd, _tmp_wav = tempfile.mkstemp(suffix="_raw.wav")
+            os.close(fd)
+            with wave.open(_tmp_wav, 'wb') as wf_tmp:
+                wf_tmp.setnchannels(1)
+                wf_tmp.setsampwidth(2)
+                wf_tmp.setframerate(INPUT_SAMPLE_RATE)
+                wf_tmp.writeframes(input_audio_bytes)
+            stt_path = _tmp_wav
+
         try:
-            with wave.open(raw_filepath, 'wb') as wf_raw:
-                wf_raw.setnchannels(1)
-                wf_raw.setsampwidth(2)
-                wf_raw.setframerate(INPUT_SAMPLE_RATE)
-                wf_raw.writeframes(input_audio_bytes)
-        except Exception as e:
-            print(json.dumps({
-                "event": "error_saving_raw_wav",
-                "error": str(e),
-                "raw_filename": raw_filename
-            }))
-
-        # Guardar WAV resampleado (16 kHz) para reproducción y STT
-        filename = f"{device_id}_{session_id}_{int(datetime.utcnow().timestamp())}.wav"
-        filepath = os.path.join(STORAGE_DIR, filename)
-        try:
-            with wave.open(filepath, 'wb') as wf:
-                wf.setnchannels(1)           # Mono
-                wf.setsampwidth(2)           # 16 bits (2 bytes)
-                wf.setframerate(OUTPUT_SAMPLE_RATE)       # 16 kHz para playback/STT
-                wf.writeframes(audio_bytes)
-            
-            print(json.dumps({
-                "event": "wav_saved_pcm16",
-                "filename": filename,
-                "wav_bytes": len(audio_bytes),
-                "duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE
-            }))
-
-            await manager.broadcast({
-                "type": "status",
-                "message": f"Sesión cerrada para {device_id} ({len(audio_bytes)} bytes PCM16 → WAV)",
-            })
-
             # Usar _raw.wav (8 kHz real) → stt.py aplica audioop.ratecv correctamente
-            transcription = await transcribe_audio_file_async(raw_filepath)
+            transcription = await transcribe_audio_file_async(stt_path)
             text = transcription.get("text", "") if isinstance(transcription, dict) else ""
             intent_result = build_response(detect_intent(text), text)
             response["transcription"] = transcription
@@ -214,34 +244,39 @@ async def receive_audio_pcm16(request: Request) -> dict:
                 "type": "session_result",
                 "device_id": device_id,
                 "session_id": session_id,
-                "file": f"/files/{filename}",
+                "file": f"/files/{filename}" if filename else None,
                 "duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE,
                 "transcription": transcription,
             })
 
-            await manager.broadcast({
-                "type": "audio_file",
-                "url": f"/files/{filename}",
-                "device_id": device_id,
-                "session_id": session_id,
-                "duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE
-            })
+            if filename:
+                await manager.broadcast({
+                    "type": "audio_file",
+                    "url": f"/files/{filename}",
+                    "device_id": device_id,
+                    "session_id": session_id,
+                    "duration_seconds": (len(audio_bytes) / 2) / OUTPUT_SAMPLE_RATE
+                })
 
             text = (transcription.get("text") or "").strip()
             if text:
-                await manager.broadcast({
+                msg = {
                     "type": "transcription",
                     "text": text,
                     "device_id": device_id,
                     "session_id": session_id,
-                    "file": f"/files/{filename}"
-                })
+                }
+                if filename:
+                    msg["file"] = f"/files/{filename}"
+                await manager.broadcast(msg)
             else:
-                await manager.broadcast({
+                msg = {
                     "type": "status",
                     "message": f"Transcripción vacía para {device_id} / {session_id}",
-                    "file": f"/files/{filename}",
-                })
+                }
+                if filename:
+                    msg["file"] = f"/files/{filename}"
+                await manager.broadcast(msg)
 
             print(json.dumps({
                 "event": "pcm16_session_result_sent",
@@ -250,18 +285,15 @@ async def receive_audio_pcm16(request: Request) -> dict:
                 "active_ws": len(manager.active_connections),
             }))
 
-        except Exception as e:
-            print(json.dumps({
-                "event": "error_saving_wav",
-                "error": str(e),
-                "filename": filename
-            }))
-            response["error"] = f"Error guardando WAV: {str(e)}"
+        finally:
+            if _tmp_wav and os.path.exists(_tmp_wav):
+                os.unlink(_tmp_wav)
 
         # Limpiar sesión
         del audio_sessions[session_key]
         response["finalized"] = True
-        response["file"] = f"/files/{filename}"
+        if filename:
+            response["file"] = f"/files/{filename}"
     else:
         response["finalized"] = False
 

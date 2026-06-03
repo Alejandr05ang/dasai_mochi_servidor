@@ -5,6 +5,9 @@ import os
 import asyncio
 import audioop
 import wave
+from concurrent.futures import ThreadPoolExecutor
+
+_executor = ThreadPoolExecutor(max_workers=2)
 try:
     from vosk import Model, KaldiRecognizer
     VOSK_AVAILABLE = True
@@ -87,4 +90,5 @@ def transcribe_audio_file(path: str) -> dict:
 
 
 async def transcribe_audio_file_async(path: str) -> dict:
-    return await asyncio.to_thread(transcribe_audio_file, path)
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_executor, transcribe_audio_file, path)
