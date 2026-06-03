@@ -3,10 +3,10 @@ import os
 import json
 from datetime import datetime
 
-from server.services.buffer import buffer_manager
-from server.services.audio_converter import convert_i2s32_to_pcm16_wav
-from server.services.stt import transcribe_audio_file_async
-from server.ws.manager import manager
+from services.buffer import buffer_manager
+from services.audio_converter import convert_i2s32_to_pcm16_wav
+from services.stt import transcribe_audio_file_async
+from ws.manager import manager
 
 router = APIRouter()
 

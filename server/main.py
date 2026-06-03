@@ -1,17 +1,20 @@
+import sys
 import asyncio
 import logging
 import os
 import json
 
+sys.path.insert(0, os.path.dirname(__file__))
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from server.routes.audio import router as audio_router
-from server.routes.audio_pcm16 import router as audio_pcm16_router
-from server.routes.transcribe import router as transcribe_router
-from server.ws.manager import manager
-from server.services.buffer import buffer_manager
+from routes.audio import router as audio_router
+from routes.audio_pcm16 import router as audio_pcm16_router
+from routes.transcribe import router as transcribe_router
+from ws.manager import manager
+from services.buffer import buffer_manager
 
 
 LOG = logging.getLogger("voiceiot")

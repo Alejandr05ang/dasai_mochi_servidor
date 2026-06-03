@@ -11,15 +11,16 @@ import tempfile
 from datetime import datetime
 
 import numpy as np
+_resample_poly = None
 try:
     from scipy.signal import resample_poly as _resample_poly
     _HAVE_SCIPY = True
 except ImportError:
     _HAVE_SCIPY = False
 
-from server.ws.manager import manager
-from server.services.stt import transcribe_audio_file_async
-from server.services.intents import detect_intent, build_response
+from ws.manager import manager
+from services.stt import transcribe_audio_file_async
+from services.intents import detect_intent, build_response
 
 router = APIRouter()
 
@@ -139,7 +140,7 @@ async def receive_audio_pcm16(request: Request) -> dict:
             g = gcd(OUTPUT_SAMPLE_RATE, INPUT_SAMPLE_RATE)
             up, down = OUTPUT_SAMPLE_RATE // g, INPUT_SAMPLE_RATE // g
             arr = np.frombuffer(input_audio_bytes, dtype=np.int16)
-            if _HAVE_SCIPY:
+            if _HAVE_SCIPY and _resample_poly is not None:
                 audio_bytes = _resample_poly(arr, up, down).astype(np.int16).tobytes()
             else:
                 audio_bytes = np.repeat(arr, up).astype(np.int16).tobytes()

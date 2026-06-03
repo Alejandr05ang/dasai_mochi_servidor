@@ -2,8 +2,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 import os
 
-from server.services.stt import transcribe_audio_file
-from server.services.intents import detect_intent, build_response
+from services.stt import transcribe_audio_file
+from services.intents import detect_intent, build_response
 
 router = APIRouter()
 
