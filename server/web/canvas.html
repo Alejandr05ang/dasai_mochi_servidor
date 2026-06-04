@@ -129,6 +129,57 @@
         padding: 0 4px;
       }
 
+      /* ── Dropdowns ───────────────────────────────── */
+      .dropdown {
+        position: relative;
+      }
+
+      .dropdown-menu {
+        display: none;
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 6px;
+        min-width: 170px;
+        z-index: 50;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+        backdrop-filter: blur(18px);
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .dropdown-menu.open {
+        display: flex;
+      }
+
+      .dropdown-menu button {
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        padding: 7px 12px;
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: left;
+        transition: all 120ms ease;
+        white-space: nowrap;
+      }
+
+      .dropdown-menu button:hover {
+        background: rgba(103, 232, 249, 0.09);
+        color: var(--accent);
+      }
+
+      .dropdown-menu button.selected {
+        color: var(--accent);
+        background: rgba(103, 232, 249, 0.06);
+      }
+
       /* ── Drawing canvas ──────────────────────────── */
       .canvas-wrap {
         border: 1px solid var(--panel-border);
@@ -160,6 +211,62 @@
         opacity: 0.65;
         margin: 0;
       }
+
+      /* ── Text input overlay ──────────────────────── */
+      .text-overlay {
+        position: fixed;
+        z-index: 200;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        padding: 10px 14px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        backdrop-filter: blur(18px);
+      }
+
+      .text-overlay input {
+        width: 160px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--panel-border);
+        border-radius: 8px;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.85rem;
+        padding: 6px 10px;
+        outline: none;
+      }
+
+      .text-overlay input:focus {
+        border-color: rgba(103, 232, 249, 0.5);
+      }
+
+      .text-overlay .txt-ok {
+        border: 1px solid rgba(103, 232, 249, 0.5);
+        border-radius: 8px;
+        padding: 6px 10px;
+        background: rgba(103, 232, 249, 0.1);
+        color: var(--accent);
+        font: inherit;
+        font-size: 0.82rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .text-overlay .txt-cancel {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 0.9rem;
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 6px;
+      }
+
+      .text-overlay .txt-cancel:hover { color: var(--danger); }
 
       /* ── Sidebar ─────────────────────────────────── */
       .canvas-sidebar {
@@ -209,28 +316,13 @@
         margin: 0;
       }
 
-      .status-msg.ok {
-        color: var(--accent-strong);
-      }
-
-      .status-msg.error {
-        color: var(--danger);
-      }
+      .status-msg.ok    { color: var(--accent-strong); }
+      .status-msg.error { color: var(--danger); }
 
       @media (max-width: 860px) {
-        .canvas-body {
-          grid-template-columns: 1fr;
-        }
-
-        .canvas-sidebar {
-          flex-direction: row;
-          flex-wrap: wrap;
-        }
-
-        .sidebar-card {
-          flex: 1;
-          min-width: 200px;
-        }
+        .canvas-body { grid-template-columns: 1fr; }
+        .canvas-sidebar { flex-direction: row; flex-wrap: wrap; }
+        .sidebar-card { flex: 1; min-width: 200px; }
       }
     </style>
   </head>
@@ -253,10 +345,39 @@
             <button class="tool-btn active" id="toolPencil" title="Lápiz (P)">Lápiz</button>
             <button class="tool-btn" id="toolEraser" title="Borrador (E)">Borrador</button>
             <button class="tool-btn" id="toolFill" title="Relleno (F)">Relleno</button>
+
             <div class="tool-sep"></div>
+
+            <!-- Figuras dropdown -->
+            <div class="dropdown">
+              <button class="tool-btn" id="toolFigures" title="Figuras geométricas (G)">Figuras ▾</button>
+              <div class="dropdown-menu" id="figuresMenu">
+                <button data-shape="square">Cuadrado</button>
+                <button data-shape="circle">Círculo</button>
+                <button data-shape="triangle">Triángulo</button>
+                <button data-shape="heart">Corazón</button>
+                <button data-shape="cross">Cruz +</button>
+                <button data-shape="x">Cruz ×</button>
+              </div>
+            </div>
+
+            <!-- Texto dropdown -->
+            <div class="dropdown">
+              <button class="tool-btn" id="toolText" title="Texto (T)">Texto ▾</button>
+              <div class="dropdown-menu" id="textMenu">
+                <button data-font="tiny"   data-label="3×5">Tiny 3×5 — ~25 chars</button>
+                <button data-font="small"  data-label="5×7">Small 5×7 — ~18 chars</button>
+                <button data-font="medium" data-label="7×9">Medium 7×9 — ~13 chars</button>
+              </div>
+            </div>
+
+            <div class="tool-sep"></div>
+
             <button class="tool-btn" id="toolInvert" title="Invertir colores">Invertir</button>
             <button class="tool-btn danger" id="toolClear" title="Limpiar todo">Limpiar</button>
+
             <div class="tool-sep"></div>
+
             <span class="toolbar-label">Tamaño:</span>
             <div class="size-group">
               <button class="size-btn active" data-size="1">1</button>
@@ -270,7 +391,7 @@
           </div>
 
           <p class="canvas-hint">
-            Teclas: P lápiz &middot; E borrador &middot; F relleno &middot; Ctrl+Z deshacer
+            P lápiz &middot; E borrador &middot; F relleno &middot; G figura &middot; T texto &middot; Ctrl+Z deshacer
           </p>
         </div>
 
@@ -295,25 +416,30 @@
       </div>
     </main>
 
+    <!-- Text input overlay (aparece al hacer click con herramienta Texto) -->
+    <div id="textOverlay" class="text-overlay">
+      <input id="textInput" type="text" placeholder="Escribe y pulsa Enter…" maxlength="64" autocomplete="off" />
+      <button class="txt-ok" id="textConfirm">OK</button>
+      <button class="txt-cancel" id="textCancel">✕</button>
+    </div>
+
     <script>
       (function () {
         'use strict';
 
-        const canvas = document.getElementById('drawCanvas');
-        const ctx = canvas.getContext('2d');
-        const preview = document.getElementById('previewCanvas');
-        const pCtx = preview.getContext('2d');
+        const canvas    = document.getElementById('drawCanvas');
+        const ctx       = canvas.getContext('2d');
+        const preview   = document.getElementById('previewCanvas');
+        const pCtx      = preview.getContext('2d');
         const pixelCountEl = document.getElementById('pixelCount');
-        const statusEl = document.getElementById('statusMsg');
-        const serverInput = document.getElementById('serverUrl');
+        const statusEl     = document.getElementById('statusMsg');
+        const serverInput  = document.getElementById('serverUrl');
 
-        // ── Inicialización ──────────────────────────────────────────
-
+        // ── Inicialización ────────────────────────────────────────────
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, 128, 64);
         syncPreview();
 
-        // URL del servidor: misma origen si se sirve desde Railway, localhost si local
         const savedUrl = localStorage.getItem('mochi_canvas_url');
         serverInput.value = savedUrl !== null
           ? savedUrl
@@ -323,23 +449,36 @@
           localStorage.setItem('mochi_canvas_url', serverInput.value.trim());
         });
 
-        // ── Estado ──────────────────────────────────────────────────
-
-        let tool = 'pencil';
+        // ── Estado ───────────────────────────────────────────────────
+        let tool      = 'pencil';
         let brushSize = 1;
-        let drawing = false;
-        let lastX = null;
-        let lastY = null;
-        const history = [];
-        const MAX_UNDO = 20;
+        let drawing   = false;
+        let lastX = null, lastY = null;
+        const history   = [];
+        const MAX_UNDO  = 20;
 
-        // ── Herramientas ────────────────────────────────────────────
+        let figureShape = 'square';   // figura activa
+        let textFont    = 'small';    // fuente activa
 
+        // ── Historial ─────────────────────────────────────────────────
+        function saveHistory() {
+          if (history.length >= MAX_UNDO) history.shift();
+          history.push(ctx.getImageData(0, 0, 128, 64));
+        }
+
+        function undo() {
+          if (!history.length) return;
+          ctx.putImageData(history.pop(), 0, 0);
+          syncPreview();
+        }
+
+        // ── setTool ───────────────────────────────────────────────────
         function setTool(name) {
           tool = name;
-          document.querySelectorAll('.tool-btn').forEach((b) => b.classList.remove('active'));
-          const ids = { pencil: 'toolPencil', eraser: 'toolEraser', fill: 'toolFill' };
-          if (ids[name]) document.getElementById(ids[name]).classList.add('active');
+          document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+          const map = { pencil: 'toolPencil', eraser: 'toolEraser', fill: 'toolFill',
+                        figure: 'toolFigures', text: 'toolText' };
+          if (map[name]) document.getElementById(map[name]).classList.add('active');
         }
 
         document.getElementById('toolPencil').addEventListener('click', () => setTool('pencil'));
@@ -351,9 +490,7 @@
           const img = ctx.getImageData(0, 0, 128, 64);
           const d = img.data;
           for (let i = 0; i < d.length; i += 4) {
-            d[i] = 255 - d[i];
-            d[i + 1] = 255 - d[i + 1];
-            d[i + 2] = 255 - d[i + 2];
+            d[i] = 255 - d[i]; d[i+1] = 255 - d[i+1]; d[i+2] = 255 - d[i+2];
           }
           ctx.putImageData(img, 0, 0);
           syncPreview();
@@ -366,29 +503,61 @@
           syncPreview();
         });
 
-        document.querySelectorAll('.size-btn').forEach((btn) => {
+        document.querySelectorAll('.size-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             brushSize = parseInt(btn.dataset.size, 10);
-            document.querySelectorAll('.size-btn').forEach((b) => b.classList.remove('active'));
+            document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
           });
         });
 
-        // ── Historial ───────────────────────────────────────────────
-
-        function saveHistory() {
-          if (history.length >= MAX_UNDO) history.shift();
-          history.push(ctx.getImageData(0, 0, 128, 64));
+        // ── Dropdowns ─────────────────────────────────────────────────
+        function closeAllDropdowns() {
+          document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('open'));
         }
 
-        function undo() {
-          if (!history.length) return;
-          ctx.putImageData(history.pop(), 0, 0);
-          syncPreview();
+        document.addEventListener('click', closeAllDropdowns);
+
+        function toggleDropdown(menuId, e) {
+          e.stopPropagation();
+          const menu = document.getElementById(menuId);
+          const wasOpen = menu.classList.contains('open');
+          closeAllDropdowns();
+          if (!wasOpen) menu.classList.add('open');
         }
 
-        // ── Primitivas de dibujo ────────────────────────────────────
+        document.getElementById('toolFigures').addEventListener('click', e => toggleDropdown('figuresMenu', e));
+        document.getElementById('toolText').addEventListener('click', e => toggleDropdown('textMenu', e));
 
+        // Figuras menu
+        document.querySelectorAll('#figuresMenu [data-shape]').forEach(item => {
+          item.addEventListener('click', e => {
+            e.stopPropagation();
+            figureShape = item.dataset.shape;
+            // Marcar seleccionado
+            document.querySelectorAll('#figuresMenu button').forEach(b => b.classList.remove('selected'));
+            item.classList.add('selected');
+            // Actualizar label del botón
+            document.getElementById('toolFigures').textContent = item.textContent.trim() + ' ▾';
+            closeAllDropdowns();
+            setTool('figure');
+          });
+        });
+
+        // Texto menu
+        document.querySelectorAll('#textMenu [data-font]').forEach(item => {
+          item.addEventListener('click', e => {
+            e.stopPropagation();
+            textFont = item.dataset.font;
+            document.querySelectorAll('#textMenu button').forEach(b => b.classList.remove('selected'));
+            item.classList.add('selected');
+            document.getElementById('toolText').textContent = 'Texto ' + item.dataset.label + ' ▾';
+            closeAllDropdowns();
+            setTool('text');
+          });
+        });
+
+        // ── Primitivas de dibujo ──────────────────────────────────────
         function pixelPos(e) {
           const rect = canvas.getBoundingClientRect();
           const src = e.touches ? e.touches[0] : e;
@@ -404,15 +573,15 @@
         }
 
         function paintLine(x0, y0, x1, y1) {
-          let dx = Math.abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-          let dy = -Math.abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-          let err = dx + dy;
-          for (;;) {
+          let dx = Math.abs(x1-x0), sx = x0<x1?1:-1;
+          let dy = -Math.abs(y1-y0), sy = y0<y1?1:-1;
+          let err = dx+dy;
+          for(;;){
             paintPixel(x0, y0);
-            if (x0 === x1 && y0 === y1) break;
-            const e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x0 += sx; }
-            if (e2 <= dx) { err += dx; y0 += sy; }
+            if(x0===x1&&y0===y1) break;
+            const e2=2*err;
+            if(e2>=dy){err+=dy;x0+=sx;}
+            if(e2<=dx){err+=dx;y0+=sy;}
           }
         }
 
@@ -420,11 +589,11 @@
           const img = ctx.getImageData(0, 0, 128, 64);
           const d = img.data;
           const W = 128, H = 64;
-          const fillVal = tool === 'eraser' ? 0 : 255;
-          const targetVal = d[(sy * W + sx) * 4]; // canal R
+          const fillVal  = tool === 'eraser' ? 0 : 255;
+          const targetVal = d[(sy * W + sx) * 4];
           if (targetVal === fillVal) return;
           const visited = new Uint8Array(W * H);
-          const stack = [sy * W + sx];
+          const stack   = [sy * W + sx];
           while (stack.length) {
             const pos = stack.pop();
             const px = pos % W, py = (pos / W) | 0;
@@ -432,9 +601,9 @@
             const i = pos * 4;
             if (d[i] !== targetVal) continue;
             visited[pos] = 1;
-            d[i] = d[i + 1] = d[i + 2] = fillVal;
-            d[i + 3] = 255;
-            stack.push(pos + 1, pos - 1, pos + W, pos - W);
+            d[i] = d[i+1] = d[i+2] = fillVal;
+            d[i+3] = 255;
+            stack.push(pos+1, pos-1, pos+W, pos-W);
           }
           ctx.putImageData(img, 0, 0);
         }
@@ -443,21 +612,189 @@
           pCtx.drawImage(canvas, 0, 0);
           const img = ctx.getImageData(0, 0, 128, 64);
           let count = 0;
-          for (let i = 0; i < img.data.length; i += 4) {
-            if (img.data[i] > 128) count++;
-          }
+          for (let i = 0; i < img.data.length; i += 4) if (img.data[i] > 128) count++;
           pixelCountEl.textContent = `${count} / 8192 px encendidos`;
         }
 
-        // ── Eventos de puntero ──────────────────────────────────────
+        // ── Figuras ───────────────────────────────────────────────────
+        // brushSize → tamaño de la figura en px (radio / semilado)
+        function getFigSz() { return [8, 14, 22][brushSize - 1]; }
 
+        // Escribe un píxel directamente en un ImageData
+        function imgPx(img, x, y, v) {
+          if (x < 0 || x > 127 || y < 0 || y > 63) return;
+          const i = (y * 128 + x) * 4;
+          img.data[i] = img.data[i+1] = img.data[i+2] = v;
+          img.data[i+3] = 255;
+        }
+
+        // Línea Bresenham sobre ImageData
+        function imgLine(img, x0, y0, x1, y1, v) {
+          let dx = Math.abs(x1-x0), sx = x0<x1?1:-1;
+          let dy = -Math.abs(y1-y0), sy = y0<y1?1:-1;
+          let err = dx+dy;
+          for(;;){
+            imgPx(img, x0, y0, v);
+            if(x0===x1&&y0===y1) break;
+            const e2=2*err;
+            if(e2>=dy){err+=dy;x0+=sx;}
+            if(e2<=dx){err+=dx;y0+=sy;}
+          }
+        }
+
+        function stampFigure(cx, cy) {
+          const sz = getFigSz();
+          const img = ctx.getImageData(0, 0, 128, 64);
+
+          if (figureShape === 'square') {
+            const h = Math.floor(sz / 2);
+            const x0=cx-h, y0=cy-h, x1=cx+h, y1=cy+h;
+            imgLine(img, x0,y0, x1,y0, 255);
+            imgLine(img, x0,y1, x1,y1, 255);
+            imgLine(img, x0,y0, x0,y1, 255);
+            imgLine(img, x1,y0, x1,y1, 255);
+          }
+
+          else if (figureShape === 'circle') {
+            const r = Math.floor(sz / 2);
+            let x=0, y=r, d=3-2*r;
+            const ring = (px, py) => {
+              for (const [a,b] of [[px,py],[py,px],[-px,py],[-py,px],
+                                    [px,-py],[py,-px],[-px,-py],[-py,-px]])
+                imgPx(img, cx+a, cy+b, 255);
+            };
+            while(x<=y){ ring(x,y); if(d<0) d+=4*x+6; else{d+=4*(x-y)+10;y--;} x++; }
+          }
+
+          else if (figureShape === 'triangle') {
+            const h  = Math.round(sz * 0.866);
+            const tx = cx,    ty  = cy - Math.floor(h * 2 / 3);
+            const bx1 = cx - Math.floor(sz / 2), by = cy + Math.ceil(h / 3);
+            const bx2 = cx + Math.floor(sz / 2);
+            imgLine(img, tx,ty, bx1,by, 255);
+            imgLine(img, bx1,by, bx2,by, 255);
+            imgLine(img, bx2,by, tx,ty, 255);
+          }
+
+          else if (figureShape === 'heart') {
+            // Ecuación paramétrica del corazón escalada al tamaño
+            const s = sz / 16;
+            for (let deg = 0; deg <= 360; deg++) {
+              const t  = deg * Math.PI / 180;
+              const hx = Math.round(cx + s * 16 * Math.pow(Math.sin(t), 3));
+              const hy = Math.round(cy - s * (13*Math.cos(t) - 5*Math.cos(2*t)
+                                              - 2*Math.cos(3*t) - Math.cos(4*t)));
+              imgPx(img, hx, hy, 255);
+            }
+          }
+
+          else if (figureShape === 'cross') {
+            const h = Math.floor(sz / 2);
+            imgLine(img, cx-h,cy, cx+h,cy, 255);
+            imgLine(img, cx,cy-h, cx,cy+h, 255);
+          }
+
+          else if (figureShape === 'x') {
+            const h = Math.floor(sz / 2);
+            imgLine(img, cx-h,cy-h, cx+h,cy+h, 255);
+            imgLine(img, cx+h,cy-h, cx-h,cy+h, 255);
+          }
+
+          ctx.putImageData(img, 0, 0);
+        }
+
+        // ── Herramienta Texto ─────────────────────────────────────────
+        // Mapeo fuente → px de canvas (1 canvas-px = 1 OLED-px)
+        const FONT_PX = { tiny: 5, small: 7, medium: 9 };
+
+        function renderTextStamp(text, x, y) {
+          const px  = FONT_PX[textFont] || 7;
+          const off = document.createElement('canvas');
+          off.width = 128; off.height = 64;
+          const octx = off.getContext('2d');
+          octx.imageSmoothingEnabled = false;
+          octx.fillStyle = '#000';
+          octx.fillRect(0, 0, 128, 64);
+          octx.fillStyle = '#fff';
+          // Fuente monospace asegura ancho fijo por carácter
+          octx.font          = `${px}px "Courier New", Courier, monospace`;
+          octx.textBaseline  = 'top';
+          octx.fillText(text, x, y);
+
+          // Merge OR: píxeles blancos del texto se suman al canvas principal
+          const src = octx.getImageData(0, 0, 128, 64);
+          const dst = ctx.getImageData(0, 0, 128, 64);
+          for (let i = 0; i < src.data.length; i += 4) {
+            if (src.data[i] > 64) {
+              dst.data[i] = dst.data[i+1] = dst.data[i+2] = 255;
+              dst.data[i+3] = 255;
+            }
+          }
+          ctx.putImageData(dst, 0, 0);
+        }
+
+        // Overlay de entrada de texto
+        const textOverlay  = document.getElementById('textOverlay');
+        const textInput    = document.getElementById('textInput');
+        let pendingTX = 0, pendingTY = 0;
+
+        function showTextInput(cx, cy, rawEvent) {
+          pendingTX = cx; pendingTY = cy;
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = rect.width / 128;
+          const scaleY = rect.height / 64;
+          const screenX = rect.left + cx * scaleX;
+          const screenY = rect.top  + cy * scaleY + window.scrollY;
+          const overlayW = 280;
+          textOverlay.style.left = Math.min(screenX, window.innerWidth - overlayW - 16) + 'px';
+          textOverlay.style.top  = Math.max(8, screenY - 50) + 'px';
+          textOverlay.style.display = 'flex';
+          textInput.value = '';
+          textInput.focus();
+        }
+
+        function commitText() {
+          const t = textInput.value.trim();
+          textOverlay.style.display = 'none';
+          if (!t) return;
+          saveHistory();
+          renderTextStamp(t, pendingTX, pendingTY);
+          syncPreview();
+        }
+
+        function cancelText() {
+          textOverlay.style.display = 'none';
+        }
+
+        textInput.addEventListener('keydown', e => {
+          if (e.key === 'Enter')  { e.preventDefault(); commitText(); }
+          else if (e.key === 'Escape') cancelText();
+        });
+        document.getElementById('textConfirm').addEventListener('click', commitText);
+        document.getElementById('textCancel').addEventListener('click', cancelText);
+        // Clicks dentro del overlay no deben llegar al canvas
+        textOverlay.addEventListener('click', e => e.stopPropagation());
+
+        // ── Eventos de puntero ────────────────────────────────────────
         function onStart(e) {
           e.preventDefault();
           const { x, y } = pixelPos(e);
+
+          if (tool === 'figure') {
+            saveHistory();
+            stampFigure(x, y);
+            syncPreview();
+            return;
+          }
+
+          if (tool === 'text') {
+            showTextInput(x, y, e);
+            return;
+          }
+
           saveHistory();
           drawing = true;
-          lastX = x;
-          lastY = y;
+          lastX = x; lastY = y;
           if (tool === 'fill') {
             floodFill(x, y);
           } else {
@@ -468,12 +805,11 @@
 
         function onMove(e) {
           e.preventDefault();
-          if (!drawing || tool === 'fill') return;
+          if (!drawing || tool === 'fill' || tool === 'figure' || tool === 'text') return;
           const { x, y } = pixelPos(e);
           if (x === lastX && y === lastY) return;
           paintLine(lastX, lastY, x, y);
-          lastX = x;
-          lastY = y;
+          lastX = x; lastY = y;
           syncPreview();
         }
 
@@ -482,30 +818,29 @@
           lastX = lastY = null;
         }
 
-        canvas.addEventListener('mousedown', onStart);
-        canvas.addEventListener('mousemove', onMove);
-        canvas.addEventListener('mouseup', onEnd);
+        canvas.addEventListener('mousedown',  onStart);
+        canvas.addEventListener('mousemove',  onMove);
+        canvas.addEventListener('mouseup',    onEnd);
         canvas.addEventListener('mouseleave', onEnd);
         canvas.addEventListener('touchstart', onStart, { passive: false });
-        canvas.addEventListener('touchmove', onMove, { passive: false });
-        canvas.addEventListener('touchend', onEnd);
+        canvas.addEventListener('touchmove',  onMove,  { passive: false });
+        canvas.addEventListener('touchend',   onEnd);
 
-        // ── Teclado ─────────────────────────────────────────────────
-
-        document.addEventListener('keydown', (e) => {
+        // ── Teclado ───────────────────────────────────────────────────
+        document.addEventListener('keydown', e => {
           if (e.target.tagName === 'INPUT') return;
           if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); return; }
           const k = e.key.toLowerCase();
-          if (k === 'p') setTool('pencil');
+          if      (k === 'p') setTool('pencil');
           else if (k === 'e') setTool('eraser');
           else if (k === 'f') setTool('fill');
+          else if (k === 'g') { setTool('figure'); document.getElementById('toolFigures').classList.add('active'); }
+          else if (k === 't') { setTool('text');   document.getElementById('toolText').classList.add('active'); }
         });
 
-        // ── Conversión a bitmap SH1106 (page format) ────────────────
-        // Byte[page*128+col]: bits 0-7 = filas top→bottom de esa página
-
+        // ── Conversión a bitmap SH1106 (page format) ──────────────────
         function toBitmap() {
-          const px = ctx.getImageData(0, 0, 128, 64).data;
+          const px  = ctx.getImageData(0, 0, 128, 64).data;
           const out = new Uint8Array(1024);
           for (let page = 0; page < 8; page++) {
             for (let col = 0; col < 128; col++) {
@@ -526,8 +861,7 @@
           return btoa(s);
         }
 
-        // ── Comunicación con el servidor ────────────────────────────
-
+        // ── Comunicación con el servidor ──────────────────────────────
         async function postCanvas(payload) {
           const base = serverInput.value.trim().replace(/\/$/, '');
           localStorage.setItem('mochi_canvas_url', base);
@@ -545,7 +879,7 @@
 
         function setStatus(msg, cls) {
           statusEl.textContent = msg;
-          statusEl.className = 'status-msg' + (cls ? ' ' + cls : '');
+          statusEl.className   = 'status-msg' + (cls ? ' ' + cls : '');
         }
 
         document.getElementById('sendBtn').addEventListener('click', async () => {
