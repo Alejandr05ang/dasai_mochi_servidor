@@ -10,6 +10,11 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <!-- Pixel fonts para renderizado limpio en el canvas OLED -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen&family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="styles.css" />
     <style>
       .canvas-header {
@@ -365,9 +370,9 @@
             <div class="dropdown">
               <button class="tool-btn" id="toolText" title="Texto (T)">Texto ▾</button>
               <div class="dropdown-menu" id="textMenu">
-                <button data-font="tiny"   data-label="3×5">Tiny 3×5 — ~25 chars</button>
-                <button data-font="small"  data-label="5×7">Small 5×7 — ~18 chars</button>
-                <button data-font="medium" data-label="7×9">Medium 7×9 — ~13 chars</button>
+                <button data-font="tiny"   data-label="VT323">VT323 — ~25 chars</button>
+                <button data-font="small"  data-label="Silk">Silkscreen — ~18 chars</button>
+                <button data-font="medium" data-label="8bit">Press Start 2P — ~13 chars</button>
               </div>
             </div>
 
@@ -704,11 +709,23 @@
         }
 
         // ── Herramienta Texto ─────────────────────────────────────────
-        // Mapeo fuente → px de canvas (1 canvas-px = 1 OLED-px)
-        const FONT_PX = { tiny: 5, small: 7, medium: 9 };
+        // Pixel fonts de Google Fonts: sin antialiasing al umbralizar a >128
+        // VT323 es muy compacta (~4px/char a 8px) → ~25 chars/línea
+        // Silkscreen a 8px → ~18 chars/línea
+        // Press Start 2P a 8px → ~13 chars/línea (bold retro)
+        const FONT_CONFIG = {
+          tiny:   { px: 8,  family: "'VT323', monospace" },
+          small:  { px: 8,  family: "'Silkscreen', monospace" },
+          medium: { px: 8,  family: "'Press Start 2P', monospace" },
+        };
+
+        // Precarga para que estén disponibles en el primer uso
+        document.fonts.load("8px 'VT323'");
+        document.fonts.load("8px 'Silkscreen'");
+        document.fonts.load("8px 'Press Start 2P'");
 
         function renderTextStamp(text, x, y) {
-          const px  = FONT_PX[textFont] || 7;
+          const cfg = FONT_CONFIG[textFont] || FONT_CONFIG.small;
           const off = document.createElement('canvas');
           off.width = 128; off.height = 64;
           const octx = off.getContext('2d');
@@ -716,16 +733,15 @@
           octx.fillStyle = '#000';
           octx.fillRect(0, 0, 128, 64);
           octx.fillStyle = '#fff';
-          // Fuente monospace asegura ancho fijo por carácter
-          octx.font          = `${px}px "Courier New", Courier, monospace`;
-          octx.textBaseline  = 'top';
+          octx.font         = `${cfg.px}px ${cfg.family}`;
+          octx.textBaseline = 'top';
           octx.fillText(text, x, y);
 
-          // Merge OR: píxeles blancos del texto se suman al canvas principal
+          // Umbral a >128: pixel fonts tienen píxeles 255 u 0, sin grises intermedios
           const src = octx.getImageData(0, 0, 128, 64);
           const dst = ctx.getImageData(0, 0, 128, 64);
           for (let i = 0; i < src.data.length; i += 4) {
-            if (src.data[i] > 64) {
+            if (src.data[i] > 128) {
               dst.data[i] = dst.data[i+1] = dst.data[i+2] = 255;
               dst.data[i+3] = 255;
             }
