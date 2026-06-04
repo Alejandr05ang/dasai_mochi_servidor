@@ -15,13 +15,19 @@ router = APIRouter()
 class CanvasPayload(BaseModel):
     bitmap: Optional[str] = None
     exit: bool = False
+    device_id: Optional[str] = None
 
 
 @router.post("/canvas")
 async def receive_canvas(payload: CanvasPayload):
     if payload.exit:
-        await manager.broadcast({"type": "canvas_exit"})
-        LOG.info(json.dumps({"event": "canvas_exit"}))
+        if payload.device_id:
+            sent = await manager.broadcast_to(payload.device_id, {"type": "canvas_exit"})
+            if not sent:
+                raise HTTPException(status_code=404, detail=f"Device '{payload.device_id}' not connected")
+        else:
+            await manager.broadcast({"type": "canvas_exit"})
+        LOG.info(json.dumps({"event": "canvas_exit", "device_id": payload.device_id}))
         return {"ok": True, "action": "exit"}
 
     if not payload.bitmap:
@@ -35,6 +41,12 @@ async def receive_canvas(payload: CanvasPayload):
     if len(raw) != 1024:
         raise HTTPException(status_code=400, detail=f"Expected 1024 bytes, got {len(raw)}")
 
-    await manager.broadcast({"type": "canvas_update", "bitmap": payload.bitmap})
-    LOG.info(json.dumps({"event": "canvas_update", "bytes": 1024}))
+    if payload.device_id:
+        sent = await manager.broadcast_to(payload.device_id, {"type": "canvas_update", "bitmap": payload.bitmap})
+        if not sent:
+            raise HTTPException(status_code=404, detail=f"Device '{payload.device_id}' not connected")
+    else:
+        await manager.broadcast({"type": "canvas_update", "bitmap": payload.bitmap})
+
+    LOG.info(json.dumps({"event": "canvas_update", "bytes": 1024, "device_id": payload.device_id}))
     return {"ok": True, "bytes": 1024}

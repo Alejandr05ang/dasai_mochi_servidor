@@ -21,9 +21,10 @@
     · WiFi y Wire vienen incluidas con el core ESP32.
 
   Cómo configurar:
-    1. Ajusta WIFI_SSID / WIFI_PASS
-    2. Ajusta WS_HOST con tu dominio de Railway (sin https://)
-       Ejemplo: "dasai-mochi-servidor.up.railway.app"
+    1. Cambia DEVICE_ID con un nombre único para este ESP32
+    2. Ajusta WIFI_SSID / WIFI_PASS
+    3. Ajusta WS_HOST con tu dominio de Railway (sin https://)
+       Ejemplo: "dasaimochiservidor-production.up.railway.app"
 */
 
 #include <WiFi.h>
@@ -32,15 +33,16 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 
-// ─── Configuración ────────────────────────────────────────────────────────────
+// ── CONFIGURACIÓN PERSONAL ──────────────────────────────────────────────────
+#define DEVICE_ID  "esp32_01"          // ← nombre único de este dispositivo
+
 const char* WIFI_SSID = "TU_WIFI";
 const char* WIFI_PASS = "TU_CONTRASEÑA";
+const char* WS_HOST   = "dasaimochiservidor-production.up.railway.app";
+// ────────────────────────────────────────────────────────────────────────────
 
-// Host de Railway (solo el dominio, sin https://)
-const char* WS_HOST = "tu-app.up.railway.app";
-const int   WS_PORT = 443;
-const char* WS_PATH = "/ws";
-// ─────────────────────────────────────────────────────────────────────────────
+const int WS_PORT = 443;
+static char WS_PATH[64];   // construido en setup() a partir de DEVICE_ID
 
 // ─── OLED SH1106 128×64 ───────────────────────────────────────────────────────
 #define OLED_SDA 6
@@ -223,6 +225,9 @@ void setup() {
     Serial.println("WiFi: no se pudo conectar");
   }
   drawStatusScreen();
+
+  // Construye la ruta incluyendo el device_id para que el servidor lo identifique
+  snprintf(WS_PATH, sizeof(WS_PATH), "/ws?device_id=%s", DEVICE_ID);
 
   // WebSocket (WSS — Railway usa TLS con cert Let's Encrypt válido)
   wsClient.onEvent(onWsEvent);

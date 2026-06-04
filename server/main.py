@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import json
+from typing import Optional
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -65,13 +66,19 @@ async def startup_event() -> None:
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket) -> None:
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, device_id: Optional[str] = None) -> None:
+    await manager.connect(websocket, device_id)
+    if device_id:
+        await manager.broadcast({"type": "device_connected", "device_id": device_id})
+        await manager.broadcast({"type": "devices", "list": manager.connected_devices()})
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        disconnected_id = manager.disconnect(websocket)
+        if disconnected_id:
+            await manager.broadcast({"type": "device_disconnected", "device_id": disconnected_id})
+            await manager.broadcast({"type": "devices", "list": manager.connected_devices()})
 
 
 async def mock_broadcaster() -> None:
