@@ -128,7 +128,7 @@ void drawStatusScreen() {
   u8g2.drawHLine(0, 41, 128);
 
   // Hint inferior centrado
-  const char* hint = wsConnected ? "usa canvas.html" : "conectando...";
+  const char* hint = wsConnected ? WS_HOST : "conectando...";
   int hw = u8g2.getStrWidth(hint);
   u8g2.drawStr((128 - hw) / 2, 53, hint);
 

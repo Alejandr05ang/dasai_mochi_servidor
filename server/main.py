@@ -114,11 +114,6 @@ async def periodic_maintenance() -> None:
 # Las rutas explícitas se registran antes del mount, por lo que tienen prioridad.
 
 @app.get("/")
-async def index_page() -> FileResponse:
-    return FileResponse(os.path.join(WEB_DIR, "index.html"))
-
-
-@app.get("/canvas")
 async def canvas_page() -> FileResponse:
     return FileResponse(os.path.join(WEB_DIR, "canvas.html"))
 
