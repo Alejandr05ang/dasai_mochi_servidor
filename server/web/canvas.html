@@ -947,6 +947,8 @@
           statusEl.className   = 'status-msg' + (cls ? ' ' + cls : '');
         }
 
+        const DEFAULT_DEVICE_ID = 'esp32_01';
+
         function getDeviceId() {
           return deviceInput.value.trim();
         }
@@ -955,13 +957,24 @@
           localStorage.setItem('mochi_device_id', getDeviceId());
         }
 
-        document.getElementById('sendBtn').addEventListener('click', async () => {
-          const device_id = getDeviceId();
-          if (!device_id) {
+        function validateDeviceId() {
+          const id = getDeviceId();
+          if (!id) {
             setStatus('Escribe tu Device ID antes de enviar.', 'error');
             deviceInput.focus();
-            return;
+            return null;
           }
+          if (id === DEFAULT_DEVICE_ID) {
+            setStatus(`"${id}" es el valor por defecto — cambia DEVICE_ID en tu firmware.`, 'error');
+            deviceInput.focus();
+            return null;
+          }
+          return id;
+        }
+
+        document.getElementById('sendBtn').addEventListener('click', async () => {
+          const device_id = validateDeviceId();
+          if (!device_id) return;
           saveDeviceId();
           setStatus(`Enviando a ${device_id}...`);
           try {
@@ -973,12 +986,8 @@
         });
 
         document.getElementById('exitBtn').addEventListener('click', async () => {
-          const device_id = getDeviceId();
-          if (!device_id) {
-            setStatus('Escribe tu Device ID antes de continuar.', 'error');
-            deviceInput.focus();
-            return;
-          }
+          const device_id = validateDeviceId();
+          if (!device_id) return;
           saveDeviceId();
           setStatus('Saliendo del modo canvas...');
           try {
