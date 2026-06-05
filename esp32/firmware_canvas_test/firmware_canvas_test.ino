@@ -28,20 +28,21 @@
 */
 
 #include <WiFi.h>
-#include <WebSocketsClient.h>
+#include <WebSocketsClient_Generic.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <U8g2lib.h>
 
 // ── CONFIGURACIÓN PERSONAL ──────────────────────────────────────────────────
-#define DEVICE_ID  "esp32_01"          // ← nombre único de este dispositivo
+#define DEVICE_ID  "especito"          // ← nombre único de este dispositivo
 
 const char* WIFI_SSID = "TU_WIFI";
 const char* WIFI_PASS = "TU_CONTRASEÑA";
-const char* WS_HOST   = "dasaimochiservidor-production.up.railway.app";
+
+const char* WS_HOST = "dasaimochiservidor-production.up.railway.app";
+const int   WS_PORT = 443;
 // ────────────────────────────────────────────────────────────────────────────
 
-const int WS_PORT = 443;
 static char WS_PATH[64];   // construido en setup() a partir de DEVICE_ID
 
 // ─── OLED SH1106 128×64 ───────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ static char WS_PATH[64];   // construido en setup() a partir de DEVICE_ID
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
 // ─── WebSocket ────────────────────────────────────────────────────────────────
-WebSocketsClient wsClient;
+WebSocketsClient webSocket;
 bool wsConnected = false;
 
 // ─── Estado del modo canvas ───────────────────────────────────────────────────
@@ -229,17 +230,16 @@ void setup() {
   // Construye la ruta incluyendo el device_id para que el servidor lo identifique
   snprintf(WS_PATH, sizeof(WS_PATH), "/ws?device_id=%s", DEVICE_ID);
 
-  // WebSocket (WSS — Railway usa TLS con cert Let's Encrypt válido)
-  wsClient.onEvent(onWsEvent);
-  wsClient.beginSSL(WS_HOST, WS_PORT, WS_PATH);
-  wsClient.setReconnectInterval(5000); // reintentar cada 5 s si se cae
+  webSocket.onEvent(onWsEvent);
+  webSocket.beginSSL(WS_HOST, WS_PORT, WS_PATH);
+  webSocket.setReconnectInterval(5000);
   Serial.printf("WebSocket → wss://%s:%d%s\n", WS_HOST, WS_PORT, WS_PATH);
 }
 
 // ─── loop ─────────────────────────────────────────────────────────────────────
 void loop() {
   // Mantiene la conexión WS y despacha mensajes entrantes — llamar muy frecuente.
-  wsClient.loop();
+  webSocket.loop();
 
   // En modo normal refresca la pantalla de estado cada 3 s (no bloqueante).
   static unsigned long lastRefresh = 0;

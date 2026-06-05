@@ -79,6 +79,9 @@ async def websocket_endpoint(websocket: WebSocket, device_id: Optional[str] = No
         if disconnected_id:
             await manager.broadcast({"type": "device_disconnected", "device_id": disconnected_id})
             await manager.broadcast({"type": "devices", "list": manager.connected_devices()})
+    except Exception as e:
+        print(f"WS ERROR: {e}")
+        manager.disconnect(websocket)
 
 
 async def mock_broadcaster() -> None:
