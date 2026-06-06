@@ -9,6 +9,7 @@ class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: List[WebSocket] = []
         self.device_connections: Dict[str, WebSocket] = {}  # device_id → ws
+        self.last_canvas: Dict[str, dict] = {}              # device_id → último canvas_update
 
     async def connect(self, websocket: WebSocket, device_id: Optional[str] = None) -> None:
         await websocket.accept()
@@ -18,6 +19,12 @@ class ConnectionManager:
             if old_ws and old_ws in self.active_connections:
                 self.active_connections.remove(old_ws)
             self.device_connections[device_id] = websocket
+            if device_id in self.last_canvas:
+                try:
+                    await websocket.send_json(self.last_canvas[device_id])
+                    print(json.dumps({"event": "ws_canvas_resent", "device_id": device_id}))
+                except Exception:
+                    pass
         print(json.dumps({"event": "ws_connect", "device_id": device_id, "total": len(self.active_connections)}))
 
     def disconnect(self, websocket: WebSocket) -> Optional[str]:
@@ -63,6 +70,8 @@ class ConnectionManager:
                     del self.device_connections[did]
 
     async def broadcast_to(self, device_id: str, message: dict) -> bool:
+        if message.get("type") == "canvas_update":
+            self.last_canvas[device_id] = message
         ws = self.device_connections.get(device_id)
         if ws is None:
             return False

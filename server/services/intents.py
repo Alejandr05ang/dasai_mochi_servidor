@@ -20,6 +20,8 @@ _POMODORO_ALIASES = [
     "como adoro",
     "pomo doro",
     "pomo dor",
+    "pongo doro",
+    "pongo dor",
     "pomo adoro",
     "pom adoro",
     "pomó doro",
@@ -44,7 +46,8 @@ _GIF_ALIASES = [
     "giff",
     "jif",
     "jiff",
-    "gif",      # por si Vosk lo transcribe correctamente
+    "gym",      # Vosk confunde "gif" con "gym"
+    "gif",
 ]
 
 def _normalizar_gif(texto: str) -> str:
@@ -56,6 +59,7 @@ def _normalizar_gif(texto: str) -> str:
 # Variantes fonéticas que Vosk produce en lugar de "canvas"
 _CANVAS_ALIASES = [
     "chambas",
+    "chamba",   # Vosk produce singular y plural según el contexto
     "camba",
     "cambas",
     "campus",
@@ -71,6 +75,23 @@ _CANVAS_ALIASES = [
 def _normalizar_canvas(texto: str) -> str:
     for alias in _CANVAS_ALIASES:
         texto = re.sub(r"\b" + re.escape(alias) + r"\b", "canvas", texto)
+    return texto
+
+
+# Infinitivos → imperativos: Vosk suele producir la forma infinitiva cuando el
+# hablante dice el imperativo (e.g. "abre" → "abrir", "pon" → "poner").
+_VERB_NORM = [
+    (r"\babrir\b",   "abre"),
+    (r"\bponer\b",   "pon"),
+    (r"\bmostrar\b", "muestra"),
+    (r"\bvolver\b",  "vuelve"),
+    (r"\bparar\b",   "para"),
+    (r"\bpausar\b",  "pausa"),
+]
+
+def _normalizar_verbos(texto: str) -> str:
+    for pattern, replacement in _VERB_NORM:
+        texto = re.sub(pattern, replacement, texto)
     return texto
 
 
@@ -272,6 +293,7 @@ MOOD_IDS = {
 
 def detect_intent(text: str) -> str:
     text = normalizar(text)
+    text = _normalizar_verbos(text)
     text = _normalizar_pomodoro(text)
     text = _normalizar_gif(text)
     text = _normalizar_canvas(text)
