@@ -10,22 +10,27 @@ def normalizar(texto: str) -> str:
 
 
 # Variantes fonéticas que Vosk produce en lugar de "pomodoro"
+# IMPORTANTE: usar re.sub con \b — str.replace sin límites de palabra corrompe
+# el texto cuando un alias es prefijo de otro (e.g. "pomodor" ⊂ "pomodoro").
 _POMODORO_ALIASES = [
     "comodoro",
+    "comodor",      # parcial sin 'o' final
     "como doro",
+    "como dor",
     "como adoro",
     "pomo doro",
+    "pomo dor",
     "pomo adoro",
     "pom adoro",
     "pomó doro",
     "pomo loro",
     "como loro",
-    "pomodor",
+    "pomodor",      # parcial sin 'o' final — va al final para no tocar "pomodoro"
 ]
 
 def _normalizar_pomodoro(texto: str) -> str:
     for alias in _POMODORO_ALIASES:
-        texto = texto.replace(alias, "pomodoro")
+        texto = re.sub(r"\b" + re.escape(alias) + r"\b", "pomodoro", texto)
     return texto
 
 
@@ -65,7 +70,7 @@ _CANVAS_ALIASES = [
 
 def _normalizar_canvas(texto: str) -> str:
     for alias in _CANVAS_ALIASES:
-        texto = texto.replace(alias, "canvas")
+        texto = re.sub(r"\b" + re.escape(alias) + r"\b", "canvas", texto)
     return texto
 
 
