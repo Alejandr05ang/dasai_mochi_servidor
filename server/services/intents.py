@@ -29,6 +29,46 @@ def _normalizar_pomodoro(texto: str) -> str:
     return texto
 
 
+# Variantes fonéticas que Vosk produce en lugar de "gif"
+# (Vosk no tiene "gif" en vocabulario español y lo reemplaza por palabras parecidas)
+_GIF_ALIASES = [
+    "guia",
+    "guie",
+    "gui",
+    "guif",
+    "giff",
+    "jif",
+    "jiff",
+    "gif",      # por si Vosk lo transcribe correctamente
+]
+
+def _normalizar_gif(texto: str) -> str:
+    for alias in _GIF_ALIASES:
+        texto = re.sub(r"\b" + re.escape(alias) + r"\b", "gif", texto)
+    return texto
+
+
+# Variantes fonéticas que Vosk produce en lugar de "canvas"
+_CANVAS_ALIASES = [
+    "chambas",
+    "camba",
+    "cambas",
+    "campus",
+    "canbas",
+    "camvas",
+    "can bas",
+    "can vas",
+    "canba",
+    "champa",
+    "champas",
+]
+
+def _normalizar_canvas(texto: str) -> str:
+    for alias in _CANVAS_ALIASES:
+        texto = texto.replace(alias, "canvas")
+    return texto
+
+
 # Verbos de inicio/parada — se buscan como substrings tras normalizar
 _VERBOS_INICIO = [
     "empieza", "empezar", "empeza",
@@ -228,6 +268,8 @@ MOOD_IDS = {
 def detect_intent(text: str) -> str:
     text = normalizar(text)
     text = _normalizar_pomodoro(text)
+    text = _normalizar_gif(text)
+    text = _normalizar_canvas(text)
     pomodoro = _detect_pomodoro(text)
     if pomodoro:
         return pomodoro
