@@ -57,41 +57,158 @@ def _detect_pomodoro(text: str) -> str | None:
     if any(v in text for v in _VERBOS_INICIO):
         return "POMODORO_START"
     if any(v in text for v in _VERBOS_PARADA):
-        return "POMODORO_STOP"
+        return "POMODORO_PAUSE"
     return None
 
 
 INTENT_MAP = [
-    # Expresiones
-    (["feliz", "contento", "bien", "como estas",
-      "alegra", "alegrarte", "alegrate"],           "MOOD_HAPPY"),
-    (["sorpresa", "sorprendete", "sorprenderte",
-      "wow", "increible"],                          "MOOD_SURPRISED"),
-    (["duerme", "dormir", "descansa", "descansar",
-      "cansado", "cansada"],                        "MOOD_SLEEPY"),
-    (["enojate", "enojarte", "enojas", "enojado",
-      "molesto", "furioso", "enoja"],               "MOOD_ANGRY"),
-    (["triste", "llora", "llorar", "mal",
-      "tristeza", "deprimido"],                     "MOOD_SAD"),
-    (["emocionado", "genial", "excelente",
-      "emocionarte", "emocionate"],                 "MOOD_EXCITED"),
-    (["amor", "te amo", "corazon",
-      "amoroso", "enamorado"],                      "MOOD_LOVE"),
-    (["sospechoso", "mmm", "raro",
-      "sospecha", "sospechar", "desconfiado"],      "MOOD_SUSPICIOUS"),
-    (["mareado", "confundido",
-      "mareo", "marearte", "confundir"],            "MOOD_DIZZY"),
-    (["normal", "neutral", "resetea",
-      "resetear", "reinicia", "reiniciar"],         "MOOD_NORMAL"),
-    # Reloj básico
-    (["que hora", "hora es"],                       "QUERY_HORA"),
-    # Pomodoro — fallback si _detect_pomodoro no captura
+    # ── NAVEGACIÓN DE MODOS ─────────────────────────────────────────────
+    (["abre mascota", "ir a mascota", "modo mascota",
+      "ve a mascota", "mascota",
+      "muestra mascota", "pon mascota"],                  "GOTO_MASCOTA"),
+
+    (["abre gif", "ir a gif", "modo gif", "abre gifs",
+      "ve a gif", "muestra gif", "pon gif",
+      "animacion", "animaciones"],                        "GOTO_GIF"),
+
+    (["abre reloj", "ir a reloj", "modo reloj",
+      "que hora es", "que hora son",
+      "ver reloj", "muestra reloj", "pon reloj",
+      "ver hora"],                                        "GOTO_HORA"),
+
+    (["abre clima", "ir a clima", "modo clima",
+      "que tiempo hace", "como esta el clima",
+      "ver clima", "muestra clima", "pon clima",
+      "como esta el tiempo", "temperatura"],              "GOTO_CLIMA"),
+
+    (["abre pomodoro", "ir a pomodoro", "modo pomodoro",
+      "ver pomodoro", "muestra pomodoro", "pon pomodoro",
+      "temporizador", "timer"],                           "GOTO_POMODORO"),
+
+    (["abre canvas", "ir a canvas", "modo canvas",
+      "ver canvas", "muestra canvas", "pon canvas",
+      "pantalla web", "dibujo web"],                      "GOTO_CANVAS"),
+
+    (["abre menu", "ir al menu", "menu principal",
+      "ver menu", "muestra menu", "volver al menu",
+      "inicio"],                                          "GOTO_MENU"),
+
+    # ── ACCIONES — MODO GIF ─────────────────────────────────────────────
+    (["pausa gif", "pausar gif", "detener gif",
+      "para gif", "congela gif", "frena gif"],            "GIF_PAUSE"),
+
+    (["reanuda gif", "reanudar gif", "continua gif",
+      "continuar gif", "play gif", "reproduce gif"],      "GIF_RESUME"),
+
+    (["siguiente gif", "proximo gif", "otro gif",
+      "cambia gif", "cambiar gif", "siguiente animacion",
+      "proxima animacion"],                               "GIF_NEXT"),
+
+    # ── ACCIONES — MODO HORA ────────────────────────────────────────────
+    (["muestra segundos", "mostrar segundos",
+      "ver segundos", "agrega segundos",
+      "con segundos"],                                    "HORA_SHOW_SECONDS"),
+
+    (["quita segundos", "quitar segundos",
+      "sin segundos", "oculta segundos",
+      "ocultar segundos"],                                "HORA_HIDE_SECONDS"),
+
+    (["toggle segundos", "cambia segundos",
+      "segundos"],                                        "HORA_TOGGLE_SECONDS"),
+
+    # ── ACCIONES — MODO CLIMA ───────────────────────────────────────────
+    (["vista actual", "clima ahora", "temperatura ahora",
+      "como esta ahora", "tiempo ahora"],                 "CLIMA_VIEW_NOW"),
+
+    (["vista hoy", "clima hoy", "resumen hoy",
+      "como estara hoy", "pronostico hoy"],               "CLIMA_VIEW_TODAY"),
+
+    (["actualiza clima", "actualizar clima",
+      "refresca clima", "refrescar clima"],               "CLIMA_REFRESH"),
+
+    # ── ACCIONES — MODO POMODORO ────────────────────────────────────────
     (["empieza pomodoro", "inicia pomodoro",
-      "iniciar pomodoro", "empezar pomodoro"],      "POMODORO_START"),
-    (["para pomodoro", "deten pomodoro",
-      "parar pomodoro", "detener pomodoro"],        "POMODORO_STOP"),
-    (["cuanto falta", "tiempo falta",
-      "tiempo queda", "cuanto queda"],              "POMODORO_QUERY"),
+      "iniciar pomodoro", "empezar pomodoro",
+      "arranca pomodoro", "start pomodoro"],              "POMODORO_START"),
+
+    (["pausa pomodoro", "pausar pomodoro",
+      "para pomodoro", "deten pomodoro",
+      "detener pomodoro", "espera pomodoro"],             "POMODORO_PAUSE"),
+
+    (["reanuda pomodoro", "reanudar pomodoro",
+      "continua pomodoro", "continuar pomodoro",
+      "sigue pomodoro"],                                  "POMODORO_RESUME"),
+
+    (["reinicia pomodoro", "reiniciar pomodoro",
+      "resetea pomodoro", "reset pomodoro",
+      "vuelve a empezar"],                                "POMODORO_RESET"),
+
+    (["cuanto falta", "cuanto tiempo falta",
+      "tiempo falta", "tiempo queda",
+      "cuanto queda", "cuanto le falta"],                 "POMODORO_QUERY"),
+
+    (["agrega tiempo", "agregar tiempo",
+      "mas tiempo", "añade tiempo",
+      "suma tiempo"],                                     "POMODORO_ADD_TIME"),
+
+    (["quita tiempo", "quitar tiempo",
+      "menos tiempo", "reduce tiempo",
+      "resta tiempo"],                                    "POMODORO_SUB_TIME"),
+
+    # ── EXPRESIONES / MOOD ──────────────────────────────────────────────
+    (["feliz", "contento", "bien", "como estas",
+      "alegra", "alegrarte", "alegrate",
+      "pon feliz", "ponte feliz"],                        "MOOD_HAPPY"),
+
+    (["sorpresa", "sorprendete", "sorprenderte",
+      "wow", "increible", "que sorpresa",
+      "pon sorprendido"],                                 "MOOD_SURPRISED"),
+
+    (["duerme", "dormir", "descansa", "descansar",
+      "cansado", "cansada", "que sueno",
+      "pon dormido", "pon somnoliento"],                  "MOOD_SLEEPY"),
+
+    (["enojate", "enojarte", "enojas", "enojado",
+      "molesto", "furioso", "enoja",
+      "pon enojado", "ponte furioso"],                    "MOOD_ANGRY"),
+
+    (["triste", "llora", "llorar", "mal",
+      "tristeza", "deprimido",
+      "pon triste", "ponte triste"],                      "MOOD_SAD"),
+
+    (["emocionado", "genial", "excelente",
+      "emocionarte", "emocionate",
+      "pon emocionado", "muy bien"],                      "MOOD_EXCITED"),
+
+    (["amor", "te amo", "corazon",
+      "amoroso", "enamorado",
+      "pon amoroso", "con amor"],                         "MOOD_LOVE"),
+
+    (["sospechoso", "mmm", "raro",
+      "sospecha", "sospechar", "desconfiado",
+      "pon sospechoso"],                                  "MOOD_SUSPICIOUS"),
+
+    (["mareado", "confundido",
+      "mareo", "marearte", "confundir",
+      "pon mareado"],                                     "MOOD_DIZZY"),
+
+    (["normal", "neutral", "resetea expresion",
+      "resetear expresion", "reinicia expresion",
+      "cara normal", "pon normal"],                       "MOOD_NORMAL"),
+]
+
+# Intents que el ESP32 reconoce en parseCommand() — referencia para sincronizar servidor ↔ firmware
+ESP32_COMMANDS = [
+    "GOTO_MENU", "GOTO_MASCOTA", "GOTO_GIF",
+    "GOTO_HORA", "GOTO_CLIMA", "GOTO_POMODORO", "GOTO_CANVAS",
+    "GIF_PAUSE", "GIF_RESUME", "GIF_NEXT",
+    "HORA_SHOW_SECONDS", "HORA_HIDE_SECONDS", "HORA_TOGGLE_SECONDS",
+    "CLIMA_VIEW_NOW", "CLIMA_VIEW_TODAY", "CLIMA_REFRESH",
+    "POMODORO_START", "POMODORO_PAUSE", "POMODORO_RESUME",
+    "POMODORO_RESET", "POMODORO_QUERY", "POMODORO_ADD_TIME", "POMODORO_SUB_TIME",
+    "MOOD_NORMAL", "MOOD_HAPPY", "MOOD_SURPRISED", "MOOD_SLEEPY",
+    "MOOD_ANGRY", "MOOD_SAD", "MOOD_EXCITED", "MOOD_LOVE",
+    "MOOD_SUSPICIOUS", "MOOD_DIZZY",
 ]
 
 MOOD_IDS = {
